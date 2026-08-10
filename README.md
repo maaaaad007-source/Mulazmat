@@ -30,7 +30,8 @@ off the search results themselves, so they cost no extra requests; companies
 without one get a monogram. Postings with more description than a card shows get
 a **Read full description** toggle, which swaps the snippet for the whole
 posting in place so you can read it without opening LinkedIn. Each card has a bookmark to save it; saved jobs live in the session, so they clear when
-the browser tab is closed. **Apply filters** closes the panel.
+the browser tab is closed. **Apply filters** re-runs the search with the new
+filters and closes the panel.
 
 Streamlit's own header is hidden so it cannot sit on top of the **Filters**
 button — delete the `[data-testid="stHeader"]` rule in `src/mulazmat/theme.py`

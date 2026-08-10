@@ -155,6 +155,11 @@ def _filters_panel() -> None:
     if st.button("Apply filters", key="apply_filters", width="stretch"):
         # Remount the popover so it comes back collapsed.
         st.session_state["filters_panel"] = st.session_state.get("filters_panel", 0) + 1
+        # Applying filters has to actually re-run the search. Without this the
+        # panel just closed and the old results stayed put, which made every
+        # filter — sort order especially — look like it did nothing.
+        if st.session_state.get("title"):
+            st.session_state["run_search"] = True
         st.rerun()
 
 
@@ -316,6 +321,9 @@ def _render_results(jobs: list[Job], query: SearchQuery) -> None:
 
 run = _topbar()
 query = _query_from_state()
+
+# Search runs on the button, or when filters were applied to an existing query.
+run = run or st.session_state.pop("run_search", False)
 
 if run:
     if not query.keywords.strip():
