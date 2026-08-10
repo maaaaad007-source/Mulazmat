@@ -49,6 +49,7 @@ to bring the hamburger menu back.
 | Sort | Most relevant or most recent. |
 | Max results | 25–500. |
 | View | **Cards** (default) or **Table**. Both live under **Filters**. |
+| Fetch full details | **Off by default.** Opens each posting for its description, employment type, applicant count, apply link and hiring contact — one extra request per job, capped at the first N. See below. |
 | Detect workplace type | Off by default. Labels every result Remote or Hybrid, at the cost of two extra searches. See below. |
 
 Results render as cards — title, company, location, the workplace / job-type /
@@ -80,18 +81,28 @@ published routes to a human:
 Cards say "No public contact links on this posting" when a posting genuinely has
 none, rather than inventing something.
 
-## Every result is fetched in full
+## Full details are opt-in, and that is the point
 
-Each result is opened on its own job page, which is where the description,
-employment type, applicant count, apply link and hiring contact live — the
-search endpoint returns none of it. There is no toggle for this: it always
-happens.
+The description, employment type, applicant count, apply link and hiring
+contact are not in the search results — each one has to be read from its own
+job page. **Fetch full details** does that, and it is off by default because
+the cost is one request per job:
 
-Those requests overlap rather than running one after another, which is the
-difference between a search taking minutes and taking seconds. Search pages go
-out the same way — their offsets are known in advance, so a wave of them is
-requested at once. Results are still yielded in LinkedIn's own order; only the
-fetching overlaps.
+| | requests for a 100-result search | time |
+| --- | --- | --- |
+| Details off | ~10 | ~1.5s |
+| Details on, first 25 | ~35 | ~3s |
+| Details on, all 100 | ~110 | ~8s |
+
+That tenfold jump in request volume is the single biggest cause of a rate
+limit. Leave it off for browsing; turn it on when you have narrowed down to a
+shortlist worth reading.
+
+Requests overlap rather than running one after another, which is the difference
+between a search taking minutes and taking seconds. Search pages go out the same
+way — their offsets are known in advance, so a wave of them is requested at
+once. Results are still yielded in LinkedIn's own order; only the fetching
+overlaps.
 
 ### Staying under the rate limit
 
@@ -169,7 +180,7 @@ pip install pytest
 pytest
 ```
 
-104 tests: HTML parsing against pinned real-world search and job-detail
+105 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), and end-to-end runs that drive the
 actual Streamlit app through `AppTest` — the top bar, the filters panel, title

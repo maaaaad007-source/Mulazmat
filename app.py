@@ -36,21 +36,28 @@ WORKPLACE_CHOICES = ["Select all", *filters.WORKPLACE_TYPES]
 
 @st.cache_data(ttl=600, show_spinner=False)
 def _cached_search(
-    cache_key: tuple, query_fields: dict, limit: int, demo: bool, detect_workplace: bool
+    cache_key: tuple,
+    query_fields: dict,
+    limit: int,
+    demo: bool,
+    detail_count: int,
+    detect_workplace: bool,
 ) -> tuple[list[dict], str]:
     """Run a search and cache it for 10 minutes.
 
     Keyed on ``cache_key`` (which excludes the company filter, since that is
     applied locally) so changing only the company name reuses the same results.
 
-    Every result is enriched from its own job page — that is where the
-    description, employment type, applicant count and apply link live. It costs
-    one request per job, so **Max results** is what governs how long a search
-    takes.
+    ``detail_count`` jobs are additionally opened on their own page for the
+    description and the rest. That is one request each on top of the search
+    itself, which is the difference between a handful of requests and a
+    hundred — and the main thing that provokes a rate limit.
     """
     query = SearchQuery(**query_fields)
     if demo:
-        jobs = sample_jobs(query, limit, enriched=True, detect_workplace=detect_workplace)
+        jobs = sample_jobs(
+            query, limit, enriched=bool(detail_count), detect_workplace=detect_workplace
+        )
         return [job.to_dict() for job in jobs], ""
 
     client = LinkedInClient()
@@ -62,14 +69,14 @@ def _cached_search(
     try:
         jobs = client.search(query, limit=limit, on_progress=on_progress)
 
-        if jobs:
+        if detail_count and jobs:
 
             def on_detail(done: int, target: int) -> None:
                 progress.progress(
                     min(done / target, 1.0), text=f"Fetching details {done}/{target}…"
                 )
 
-            jobs = client.enrich(jobs, limit=len(jobs), on_progress=on_detail)
+            jobs = client.enrich(jobs, limit=detail_count, on_progress=on_detail)
 
         if detect_workplace and jobs and not query.workplace_types:
             progress.progress(0.0, text="Checking which roles are remote or hybrid…")
@@ -84,10 +91,16 @@ def _cached_search(
     notice = ""
     if client.throttled:
         notice = (
-            f"LinkedIn started rate limiting partway through, so this is "
-            f"{len(jobs)} results rather than the {limit} asked for, and some may "
-            f"be missing their description. Asking for fewer results avoids it."
+            f"LinkedIn started rate limiting partway through, so this is {len(jobs)} "
+            f"results rather than the {limit} asked for."
         )
+        if detail_count:
+            notice += (
+                " **Fetch full details** is the usual cause — it makes one request per"
+                " job. Turning it off, or asking for fewer results, avoids this."
+            )
+        else:
+            notice += " Asking for fewer results avoids this."
     return [job.to_dict() for job in jobs], notice
 
 
@@ -129,6 +142,17 @@ def _filters_panel() -> None:
 
     st.markdown('<p class="mz-fgroup">View as</p>', unsafe_allow_html=True)
     st.radio("View as", ["Cards", "Table"], key="view", label_visibility="collapsed")
+
+    st.checkbox(
+        "Fetch full details",
+        key="fetch_details",
+        help="Opens each posting for its description, employment type, applicant "
+        "count, apply link and hiring contact. One extra request per job, so it is "
+        "much slower and far likelier to be rate limited. Leave it off unless you "
+        "need the descriptions.",
+    )
+    if st.session_state.get("fetch_details"):
+        st.slider("Details for first N jobs", key="detail_count", min_value=5, max_value=50, step=5)
 
     st.checkbox(
         "Detect workplace type",
@@ -326,6 +350,9 @@ if run:
                 query.__dict__.copy(),
                 st.session_state.get("limit", 100),
                 st.session_state.get("demo_mode", False),
+                st.session_state.get("detail_count", 0)
+                if st.session_state.get("fetch_details")
+                else 0,
                 bool(st.session_state.get("detect_workplace")),
             )
         except LinkedInError as exc:

@@ -494,8 +494,9 @@ class LinkedInClient:
             if response.status_code == 403:
                 self.throttled = True
                 raise BlockedError(
-                    "LinkedIn refused the request (HTTP 403). It usually clears on its "
-                    "own after a while; searching less often helps."
+                    "LinkedIn refused the request (HTTP 403). This usually follows a "
+                    "burst of traffic and clears on its own after a few minutes. Fewer "
+                    "results, and “Fetch full details” off, make it far less likely."
                 )
             if response.status_code == 429 or response.status_code >= 500:
                 last_error = LinkedInError(f"HTTP {response.status_code}")
@@ -512,7 +513,8 @@ class LinkedInClient:
         if isinstance(last_error, LinkedInError) and "429" in str(last_error):
             raise RateLimitedError(
                 "LinkedIn is rate limiting this search (HTTP 429). Wait a few minutes, "
-                "or ask for fewer results."
+                "then try fewer results — and with “Fetch full details” off, since that "
+                "makes one request per job."
             )
         raise LinkedInError(f"Could not reach LinkedIn: {last_error}")
 

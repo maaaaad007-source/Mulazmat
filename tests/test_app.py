@@ -53,7 +53,7 @@ def test_filters_panel_holds_every_filter():
     app = _app()
     keys = {r.key for r in app.radio} | {c.key for c in app.checkbox} | {s.key for s in app.slider}
     assert {"sort", "date_posted", "workplace", "view"} <= keys
-    assert {"exp_Internship", "exp_Director", "detect_workplace", "demo_mode"} <= keys
+    assert {"exp_Internship", "exp_Director", "fetch_details", "demo_mode"} <= keys
     assert "limit" in keys
     assert app.button(key="apply_filters").label == "Apply filters"
 
@@ -97,19 +97,30 @@ def test_searching_puts_the_title_at_the_top_of_the_suggestions():
     assert app.selectbox(key="title").options[0] == "Chef"
 
 
-def test_every_result_arrives_with_its_full_details():
-    # Enrichment is unconditional — there is no toggle for it.
-    html = _html(_search(_app()))
+def test_fetch_full_details_adds_the_description():
+    app = _app()
+    app.checkbox(key="fetch_details").set_value(True).run()
+    app = _search(app)
+
+    html = _html(app)
     assert '<p class="mz-desc">' in html
     # The strip fills out too, since employment type comes from the same page.
     assert "Full-time" in html or "Contract" in html
 
 
-def test_the_filters_panel_no_longer_offers_a_details_toggle():
+def test_details_are_off_by_default_so_a_search_is_one_request_per_page():
+    # The expensive path is opt-in: leaving it off is what keeps a search
+    # inside LinkedIn's rate limit.
     app = _app()
-    keys = {c.key for c in app.checkbox} | {s.key for s in app.slider}
-    assert "fetch_details" not in keys
-    assert "detail_count" not in keys
+    assert app.checkbox(key="fetch_details").value is False
+    assert '<p class="mz-desc">' not in _html(_search(app))
+
+
+def test_the_detail_slider_only_appears_once_details_are_on():
+    app = _app()
+    assert not [s for s in app.slider if s.key == "detail_count"]
+    app.checkbox(key="fetch_details").set_value(True).run()
+    assert app.slider(key="detail_count").value is not None
 
 
 def test_workplace_filter_labels_the_cards():
@@ -224,7 +235,9 @@ def test_workplace_select_all_sends_no_workplace_filter():
 
 
 def test_descriptions_can_be_expanded_in_place():
-    app = _search(_app())
+    app = _app()
+    app.checkbox(key="fetch_details").set_value(True).run()
+    app = _search(app)
     toggles = [b for b in app.button if b.key.startswith("desc_")]
     assert toggles, "long postings should offer a toggle"
 
