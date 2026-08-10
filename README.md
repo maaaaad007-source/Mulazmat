@@ -21,8 +21,8 @@ UI with sample data, without touching LinkedIn.
 A single horizontal bar across the top — logo, job title, company, country,
 **Search**, **Filters**, and a bookmark that switches to your saved jobs. There is
 no sidebar. Everything secondary lives in the **Filters** dropdown: sort, date
-posted, workplace, experience level, max results, card/table view, detail
-fetching, demo mode and the geoId override.
+posted, workplace, experience level, max results, card/table view, workplace
+detection, demo mode and the geoId override.
 
 Results are a two-up grid of cards: company logo, title, company, location, a
 workplace / job-type / age strip, and the **Contact & apply** footer. Logos come
