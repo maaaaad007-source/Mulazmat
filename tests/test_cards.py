@@ -1,4 +1,11 @@
-from mulazmat.cards import card_html, contact_html, meta_items, meta_row_html, title_html
+from mulazmat.cards import (
+    card_html,
+    contact_html,
+    logo_html,
+    meta_items,
+    meta_row_html,
+    title_html,
+)
 from mulazmat.models import Job
 
 FULL = Job(
@@ -37,6 +44,36 @@ def test_title_block_has_title_company_and_location():
     assert "Amsterdam, Netherlands" in html
     assert 'href="https://www.linkedin.com/jobs/view/1"' in html
     assert "mz-card-link" not in html, "the title must not look like a button"
+
+
+def test_logo_renders_when_the_card_carried_one():
+    job = Job(
+        job_id="9", title="T", company="Acme", location="Berlin", url="",
+        logo_url="https://media.licdn.com/dms/image/acme.png",
+    )
+    html = logo_html(job)
+    assert 'src="https://media.licdn.com/dms/image/acme.png"' in html
+    assert 'alt="Acme logo"' in html
+
+
+def test_logo_falls_back_to_the_company_initial():
+    job = Job(job_id="9", title="T", company="ordnary", location="Berlin", url="")
+    assert "mz-logo-fallback" in logo_html(job)
+    assert ">O<" in logo_html(job)
+
+
+def test_logo_url_is_escaped():
+    job = Job(
+        job_id="9", title="T", company="Acme", location="B", url="",
+        logo_url='https://x/y.png" onerror="alert(1)',
+    )
+    assert 'onerror="alert(1)"' not in logo_html(job)
+
+
+def test_title_block_puts_the_logo_beside_the_text():
+    html = title_html(FULL)
+    assert "mz-head" in html and "mz-logo-box" in html
+    assert html.index("mz-logo-box") < html.index("mz-title")
 
 
 def test_meta_strip_is_workplace_type_and_age():

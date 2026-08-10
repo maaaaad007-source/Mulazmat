@@ -1,5 +1,5 @@
-from mulazmat.linkedin import build_params, parse_jobs_html
-from mulazmat.models import SearchQuery
+from mulazmat.linkedin import LinkedInClient, LinkedInError, build_params, parse_jobs_html
+from mulazmat.models import Job, SearchQuery
 
 # Trimmed-down copy of a real search-result fragment.
 FRAGMENT = """
@@ -98,3 +98,49 @@ def test_company_filter_ignores_case_and_blanks():
     assert job.matches_company("acme")
     assert job.matches_company("  ")
     assert not job.matches_company("globex")
+
+
+class _FakeClient(LinkedInClient):
+    """Records which workplace filter each probe used, and answers from a map."""
+
+    def __init__(self, by_code, fail_on=None):
+        super().__init__(request_delay=0)
+        self.by_code = by_code
+        self.fail_on = fail_on
+        self.codes_seen = []
+
+    def iter_jobs(self, query, limit=100):
+        code = query.workplace_types[0]
+        self.codes_seen.append(code)
+        if code == self.fail_on:
+            raise LinkedInError("probe failed")
+        for job_id in self.by_code.get(code, ()):
+            yield Job(job_id=job_id, title="t", company="c", location="l", url="")
+
+
+def test_workplace_map_labels_remote_and_hybrid_from_linkedins_own_filters():
+    client = _FakeClient({"2": ["1", "2"], "3": ["3"]})
+    assert client.workplace_map(SearchQuery(keywords="x")) == {
+        "1": "Remote",
+        "2": "Remote",
+        "3": "Hybrid",
+    }
+    assert client.codes_seen == ["2", "3"]
+
+
+def test_jobs_in_neither_probe_stay_unlabelled():
+    # A posting that never declared a workplace type matches no filter, so it
+    # is left blank rather than assumed on-site.
+    client = _FakeClient({"2": ["1"]})
+    assert "99" not in client.workplace_map(SearchQuery(keywords="x"))
+
+
+def test_a_failed_probe_degrades_instead_of_breaking_the_search():
+    client = _FakeClient({"2": ["1"]}, fail_on="2")
+    assert client.workplace_map(SearchQuery(keywords="x")) == {}
+
+
+def test_the_probe_never_reuses_the_users_own_workplace_filter():
+    client = _FakeClient({"2": ["1"], "3": []})
+    client.workplace_map(SearchQuery(keywords="x", workplace_types=("1",)))
+    assert client.codes_seen == ["2", "3"]

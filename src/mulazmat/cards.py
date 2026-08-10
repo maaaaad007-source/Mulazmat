@@ -25,18 +25,40 @@ def _anchor(url: str, label: str, css: str = "") -> str:
     )
 
 
+def logo_html(job: Job) -> str:
+    """Company logo, falling back to the company's initial.
+
+    The URL comes off the search card itself, so showing it costs no extra
+    request. A monogram stands in when a company has no logo, which keeps every
+    card the same shape.
+    """
+    if job.logo_url:
+        return (
+            f'<img class="mz-logo-img" src="{escape(job.logo_url, quote=True)}" '
+            f'alt="{escape(job.company)} logo" loading="lazy" '
+            f'onerror="this.style.display=\'none\'">'
+        )
+    return f'<span class="mz-logo-fallback">{escape(job.initial)}</span>'
+
+
 def title_html(job: Job) -> str:
-    """Job title, company and location — the top third of a card."""
+    """Logo, job title, company and location — the top third of a card."""
     label = job.title or "Untitled role"
     heading = _anchor(job.url, label) if job.url else escape(label)
 
-    parts = [f'<p class="mz-title">{heading}</p>']
+    text = [f'<p class="mz-title">{heading}</p>']
     if job.company:
         company = _anchor(job.company_url, job.company) if job.company_url else escape(job.company)
-        parts.append(f'<p class="mz-sub">{company}</p>')
+        text.append(f'<p class="mz-sub">{company}</p>')
     if job.location:
-        parts.append(f'<p class="mz-sub mz-sub--muted">{escape(job.location)}</p>')
-    return "".join(parts)
+        text.append(f'<p class="mz-sub mz-sub--muted">{escape(job.location)}</p>')
+
+    return (
+        f'<div class="mz-head">'
+        f'<div class="mz-logo-box">{logo_html(job)}</div>'
+        f'<div class="mz-head-text">{"".join(text)}</div>'
+        f"</div>"
+    )
 
 
 def meta_items(job: Job) -> list[str]:

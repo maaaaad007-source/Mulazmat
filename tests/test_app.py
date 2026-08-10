@@ -151,7 +151,9 @@ def test_table_view_renders_a_dataframe_instead_of_cards():
     app = _search(_app(), view="Table")
     assert app.dataframe
     frame = app.dataframe[0].value
-    assert list(frame.columns) == ["Title", "Company", "Location", "Posted", "Salary", "Link"]
+    assert list(frame.columns) == [
+        "Title", "Company", "Location", "Workplace", "Posted", "Link"
+    ]
     # Match the rendered element, not the class name in the stylesheet.
     assert '<p class="mz-title">' not in _html(app)
 

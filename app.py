@@ -36,7 +36,12 @@ WORKPLACE_CHOICES = ["Select all", *filters.WORKPLACE_TYPES]
 
 @st.cache_data(ttl=600, show_spinner=False)
 def _cached_search(
-    cache_key: tuple, query_fields: dict, limit: int, demo: bool, detail_count: int
+    cache_key: tuple,
+    query_fields: dict,
+    limit: int,
+    demo: bool,
+    detail_count: int,
+    detect_workplace: bool,
 ) -> list[dict]:
     """Run a search and cache it for 10 minutes.
 
@@ -45,7 +50,10 @@ def _cached_search(
     """
     query = SearchQuery(**query_fields)
     if demo:
-        return [job.to_dict() for job in sample_jobs(query, limit, bool(detail_count))]
+        return [
+            job.to_dict()
+            for job in sample_jobs(query, limit, bool(detail_count), detect_workplace)
+        ]
 
     client = LinkedInClient()
     progress = st.progress(0.0, text="Searching LinkedIn…")
@@ -64,6 +72,14 @@ def _cached_search(
                 )
 
             jobs = client.enrich(jobs, limit=detail_count, on_progress=on_detail)
+
+        if detect_workplace and jobs and not query.workplace_types:
+            progress.progress(0.0, text="Checking which roles are remote or hybrid…")
+            labels = client.workplace_map(query, limit)
+            jobs = [
+                dataclasses.replace(job, workplace=job.workplace or labels.get(job.job_id, ""))
+                for job in jobs
+            ]
     finally:
         progress.empty()
 
@@ -117,6 +133,13 @@ def _filters_panel() -> None:
     )
     if st.session_state.get("fetch_details"):
         st.slider("Details for first N jobs", key="detail_count", min_value=5, max_value=50, step=5)
+    st.checkbox(
+        "Detect workplace type",
+        key="detect_workplace",
+        help="Labels each result Remote or Hybrid by re-running your search through "
+        "LinkedIn's own workplace filters — the only reliable source, since postings "
+        "rarely state it anywhere readable. Costs two extra searches.",
+    )
     st.checkbox("Demo mode (no network)", key="demo_mode", help="Sample results, no LinkedIn call.")
 
     st.markdown('<p class="mz-fgroup">Advanced</p>', unsafe_allow_html=True)
@@ -229,13 +252,13 @@ def _query_from_state() -> SearchQuery:
 
 
 def _render_table(frame: pd.DataFrame) -> None:
-    display = frame[["title", "company", "location", "posted_label", "salary", "url"]].rename(
+    display = frame[["title", "company", "location", "workplace", "posted_label", "url"]].rename(
         columns={
             "title": "Title",
             "company": "Company",
             "location": "Location",
+            "workplace": "Workplace",
             "posted_label": "Posted",
-            "salary": "Salary",
             "url": "Link",
         }
     )
@@ -309,6 +332,7 @@ if run:
                 st.session_state.get("detail_count", 0)
                 if st.session_state.get("fetch_details")
                 else 0,
+                bool(st.session_state.get("detect_workplace")),
             )
         except LinkedInError as exc:
             st.error(str(exc))

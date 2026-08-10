@@ -24,8 +24,10 @@ no sidebar. Everything secondary lives in the **Filters** dropdown: sort, date
 posted, workplace, experience level, max results, card/table view, detail
 fetching, demo mode and the geoId override.
 
-Results are a two-up grid of cards: title, company, location, a
-workplace / job-type / age strip, and the **Contact & apply** footer. Each card
+Results are a two-up grid of cards: company logo, title, company, location, a
+workplace / job-type / age strip, and the **Contact & apply** footer. Logos come
+off the search results themselves, so they cost no extra requests; companies
+without one get a monogram. Each card
 has a bookmark to save it; saved jobs live in the session, so they clear when
 the browser tab is closed. **Apply filters** closes the panel.
 
@@ -46,7 +48,8 @@ to bring the hamburger menu back.
 | Sort | Most relevant or most recent. |
 | Max results | 25–500. |
 | View | **Cards** (default) or **Table**. Both live under **Filters**. |
-| Fetch full details | Off by default. Opens each posting for its description, employment type, applicant count and apply link — one extra request per job, capped at the first N. With it on, cards gain a description snippet and a fuller workplace / job-type / age strip. |
+| Fetch full details | Off by default. Opens each posting for its description, employment type, applicant count and apply link — one extra request per job, capped at the first N. With it on, cards gain a description snippet. |
+| Detect workplace type | Off by default. Labels every result Remote or Hybrid, at the cost of two extra searches. See below. |
 
 Results render as cards — title, company, location, the workplace / job-type /
 age strip, a description once details are fetched, and a **Contact & apply**
@@ -130,7 +133,7 @@ pip install pytest
 pytest
 ```
 
-71 tests: HTML parsing against pinned real-world search and job-detail
+79 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), and end-to-end runs that drive the
 actual Streamlit app through `AppTest` — the top bar, the filters panel, title
@@ -155,17 +158,26 @@ the box accepts anything you type either way.
 
 ### Where the workplace label comes from
 
-LinkedIn puts no workplace type on a search card, so a card can only say
-"Remote"/"Hybrid" when something authoritative does. In order of preference:
+This one is harder than it looks. LinkedIn puts no workplace type on a search
+card, and the job page's criteria list has no workplace row either — so for most
+postings there is simply nothing to read, which is why the slot sat empty.
 
-1. **The posting's schema.org block.** Job pages embed a `JobPosting` JSON-LD
-   record, and `jobLocationType: "TELECOMMUTE"` is the one place a posting
-   states it is remote. Read only when **Fetch full details** is on, since it
-   lives on the individual job page.
-2. **Your workplace filter.** Filtering to Remote means every result is remote
-   by definition, so the cards are labelled accordingly.
-3. **The location text**, when it literally says Remote or Hybrid.
+**Detect workplace type** (under Filters) solves it properly: it re-runs your
+search through LinkedIn's own `f_WT` filters, once for Remote and once for
+Hybrid, and labels every id that comes back. LinkedIn's filter is the
+authority on this, so the answer is exact rather than inferred. The cost is two
+extra paginated searches, which is why it is opt-in — on a 500-result search
+that is real request volume, and a good way to meet a rate limit.
 
-Worth knowing: schema.org has no "on-site" or "hybrid" value — only the remote
-flag — so non-remote postings usually leave the slot blank rather than claim
-something LinkedIn never said.
+Without it, a card still says Remote or Hybrid when something else is
+authoritative:
+
+1. **Your workplace filter** — filtering to Remote means every result is remote
+   by definition.
+2. **The posting's schema.org block**, when **Fetch full details** is on:
+   `jobLocationType: "TELECOMMUTE"` is the one place a posting states it is
+   remote. Note schema.org has no on-site or hybrid value, only the remote flag.
+3. **The title or location text**, when it literally says Remote or Hybrid —
+   common enough that it is worth reading, e.g. "Product Designer (Remote)".
+
+Anything else is left blank rather than guessed at.

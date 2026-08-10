@@ -88,6 +88,23 @@ def _text(node) -> str:
     return node.get_text(strip=True) if node else ""
 
 
+def _logo_url(card) -> str:
+    """Company logo from a search card.
+
+    LinkedIn lazy-loads these, so the real URL usually sits in
+    ``data-delayed-url`` and ``src`` holds a transparent placeholder.
+    """
+    image = card.select_one("img")
+    if not image:
+        return ""
+
+    for attribute in ("data-delayed-url", "data-ghost-url", "src"):
+        url = (image.get(attribute) or "").strip()
+        if url.startswith("http") and "data:image" not in url:
+            return url
+    return ""
+
+
 def _job_id(card) -> str:
     """Pull the numeric posting id out of the card's entity urn or link."""
     urn = card.get("data-entity-urn") or ""
@@ -145,6 +162,7 @@ def parse_jobs_html(html: str) -> list[Job]:
                 company=_text(company_node),
                 location=_text(card.select_one("span.job-search-card__location")),
                 workplace=_text(card.select_one("span.job-search-card__workplace-type")),
+                logo_url=_logo_url(card),
                 url=url,
                 posted_at=(time_node.get("datetime") if time_node else "") or "",
                 posted_label=_text(time_node),
@@ -260,6 +278,16 @@ def parse_job_details(html: str) -> dict[str, str]:
         field_name = _CRITERIA_FIELDS.get(label.strip())
         if field_name and value:
             details[field_name] = value
+
+    # LinkedIn shows the workplace type as a "flavor" chip on the job page's
+    # top card when the posting sets one.
+    flavor = _text(
+        soup.select_one(
+            "span.topcard__flavor--workplace-type, span.job-details-jobs-unified-top-card__workplace-type"
+        )
+    )
+    if flavor:
+        details["workplace"] = flavor
 
     applicants = _text(soup.select_one("span.num-applicants__caption, figcaption"))
     if applicants:
@@ -390,6 +418,33 @@ class LinkedInClient:
             if on_progress:
                 on_progress(len(jobs), limit)
         return jobs
+
+    def workplace_map(self, query: SearchQuery, limit: int = 100) -> dict[str, str]:
+        """Ask LinkedIn which of these jobs are Remote, and which are Hybrid.
+
+        Postings almost never state their workplace type anywhere we can read —
+        not on the search card, and not in the job page's criteria list. But the
+        search endpoint filters on it, so re-running the same query with
+        ``f_WT=2`` and ``f_WT=3`` gives an authoritative set of ids for each.
+
+        Costs two extra paginated searches, which is why it is opt-in. Jobs in
+        neither set are left unlabelled rather than assumed on-site: a posting
+        that never declared a type matches none of the filters.
+        """
+        labels: dict[str, str] = {}
+
+        for code, label in (("2", "Remote"), ("3", "Hybrid")):
+            probe = dataclasses.replace(query, workplace_types=(code,))
+            try:
+                for job in self.iter_jobs(probe, limit):
+                    if job.job_id:
+                        labels[job.job_id] = label
+            except LinkedInError:
+                # A failed probe just means fewer labels, never a failed search.
+                break
+            time.sleep(self.request_delay)
+
+        return labels
 
     def fetch_details(self, job: Job) -> Job:
         """Return a copy of ``job`` with the detail-page fields filled in.

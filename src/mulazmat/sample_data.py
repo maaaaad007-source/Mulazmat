@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import date, timedelta
+from urllib.parse import quote
 
 from .models import Job, SearchQuery
 
@@ -34,12 +35,30 @@ _ARRANGEMENT = ("On-site", "Hybrid", "Remote")
 _WORKPLACE_BY_CODE = {"1": "On-site", "2": "Remote", "3": "Hybrid"}
 
 
-def sample_jobs(query: SearchQuery, limit: int = 40, enriched: bool = False) -> list[Job]:
+def _demo_logo(company: str) -> str:
+    """An inline SVG monogram, so demo cards exercise the <img> path offline."""
+    hue = sum(ord(c) for c in company) % 360
+    svg = (
+        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'>"
+        f"<rect width='40' height='40' rx='6' fill='hsl({hue},55%,88%)'/>"
+        f"<text x='20' y='27' font-family='sans-serif' font-size='20' font-weight='700' "
+        f"text-anchor='middle' fill='hsl({hue},45%,38%)'>{company[:1].upper()}</text></svg>"
+    )
+    return "data:image/svg+xml;utf8," + quote(svg)
+
+
+def sample_jobs(
+    query: SearchQuery,
+    limit: int = 40,
+    enriched: bool = False,
+    detect_workplace: bool = False,
+) -> list[Job]:
     """Deterministic fake results shaped by the user's query.
 
-    ``enriched`` mirrors "Fetch full details": without it the jobs carry only
-    what a real search card gives you, so demo mode shows the same sparser
-    cards a live search would.
+    ``enriched`` mirrors "Fetch full details" and ``detect_workplace`` mirrors
+    the workplace probe: without them the jobs carry only what a real search
+    card gives you, so demo mode shows the same sparser cards a live search
+    would.
     """
     # Echoed back exactly as typed — .title() would turn "UX designer" into
     # "Ux Designer".
@@ -70,6 +89,7 @@ def sample_jobs(query: SearchQuery, limit: int = 40, enriched: bool = False) -> 
                 posted_label=("today" if index % 21 == 0 else f"{index % 21} days ago"),
                 salary="" if index % 3 else "€5,500 - 7,000/mo",
                 company_url=f"https://www.linkedin.com/company/{company.split()[0].lower()}",
+                logo_url=_demo_logo(company) if index % 3 else "",
                 source="demo",
                 description=(
                     f"We are hiring a {full_title.lower()} to join {company}. "
@@ -79,7 +99,7 @@ def sample_jobs(query: SearchQuery, limit: int = 40, enriched: bool = False) -> 
                 )
                 if enriched
                 else "",
-                workplace=arrangement if enriched else "",
+                workplace=arrangement if (enriched or detect_workplace) else "",
                 seniority=("Entry level" if index % 2 else "Mid-Senior level") if enriched else "",
                 employment_type=("Contract" if index % 5 == 0 else "Full-time") if enriched else "",
                 job_function="Analyst" if enriched else "",

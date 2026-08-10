@@ -19,6 +19,7 @@ class Job:
     posted_label: str = ""
     salary: str = ""
     company_url: str = ""
+    logo_url: str = ""
     source: str = "linkedin"
 
     # Filled in only when detail enrichment is switched on — see
@@ -55,11 +56,16 @@ class Job:
         """
         if self.workplace:
             return self.workplace
-        location = self.location.lower()
-        if "hybrid" in location:
+        # Postings routinely put it in the title ("Product Designer (Remote)")
+        # or the location ("Amsterdam (Hybrid)") when the structured data does
+        # not carry it at all.
+        haystack = f"{self.location} {self.title}".lower()
+        if "hybrid" in haystack:
             return "Hybrid"
-        if "remote" in location:
+        if "remote" in haystack:
             return "Remote"
+        if "on-site" in haystack or "onsite" in haystack:
+            return "On-site"
         return ""
 
     @property
@@ -67,6 +73,11 @@ class Job:
         """Short labels shown as pills on the card."""
         values = (self.employment_type, self.seniority, self.job_function)
         return tuple(value for value in values if value)
+
+    @property
+    def initial(self) -> str:
+        """First letter of the company, for the logo placeholder."""
+        return (self.company.strip()[:1] or "?").upper()
 
     def has_contact_links(self) -> bool:
         """True when we have anything real to put under "Contact & apply"."""

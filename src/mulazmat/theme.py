@@ -190,9 +190,22 @@ STYLES = f"""
 [class*="st-key-card_"] > div {{ height: 100%; }}
 [class*="st-key-card_"] [data-testid="stElementContainer"] {{ margin: 0; }}
 
+/* Logo left, the title/company/location block to its right. */
+.mz-head {{ display: flex; gap: .85rem; align-items: flex-start; }}
+.mz-head-text {{ min-width: 0; flex: 1; }}
+.mz-logo-box {{
+  width: 46px; height: 46px; flex: none; border-radius: 8px;
+  border: 1px solid var(--mz-line); background: #fff; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}}
+.mz-logo-img {{ width: 100%; height: 100%; object-fit: contain; }}
+.mz-logo-fallback {{
+  font-weight: 700; font-size: 1.1rem; color: var(--mz-muted);
+}}
+
 .mz-title {{
   font-size: 1.15rem; font-weight: 700; line-height: 1.35;
-  margin: 0 0 .55rem; padding-right: 2rem;
+  margin: 0 0 .35rem; padding-right: 1.6rem;
 }}
 .mz-title a {{ color: var(--mz-ink); text-decoration: none; }}
 .mz-title a:hover {{ color: var(--mz-accent); }}
