@@ -33,6 +33,11 @@ def test_app_starts_with_the_intro_and_no_sidebar_widgets():
     assert not app.sidebar.text_input, "the layout must not use a sidebar"
 
 
+def test_the_browser_tab_is_named_oolazim():
+    source = Path(APP).read_text()
+    assert 'page_title="oolazim"' in source
+
+
 def test_search_without_a_title_is_rejected():
     app = _app()
     app.button(key="search").click().run()

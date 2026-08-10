@@ -25,7 +25,7 @@ from mulazmat.models import Job, SearchQuery  # noqa: E402
 from mulazmat.sample_data import sample_jobs  # noqa: E402
 
 st.set_page_config(
-    page_title="Mulazmat — LinkedIn Job Search",
+    page_title="oolazim",
     page_icon="💼",
     layout="wide",
     initial_sidebar_state="collapsed",
