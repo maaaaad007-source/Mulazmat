@@ -27,8 +27,9 @@ fetching, demo mode and the geoId override.
 Results are a two-up grid of cards: company logo, title, company, location, a
 workplace / job-type / age strip, and the **Contact & apply** footer. Logos come
 off the search results themselves, so they cost no extra requests; companies
-without one get a monogram. Each card
-has a bookmark to save it; saved jobs live in the session, so they clear when
+without one get a monogram. Postings with more description than a card shows get
+a **Read full description** expander, so you can read the whole posting without
+opening LinkedIn. Each card has a bookmark to save it; saved jobs live in the session, so they clear when
 the browser tab is closed. **Apply filters** closes the panel.
 
 Streamlit's own header is hidden so it cannot sit on top of the **Filters**
@@ -133,7 +134,7 @@ pip install pytest
 pytest
 ```
 
-79 tests: HTML parsing against pinned real-world search and job-detail
+85 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), and end-to-end runs that drive the
 actual Streamlit app through `AppTest` — the top bar, the filters panel, title

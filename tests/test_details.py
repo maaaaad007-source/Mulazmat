@@ -137,8 +137,27 @@ def test_blank_input_yields_no_details():
     assert parse_job_details("   ") == {}
 
 
-def test_long_descriptions_are_trimmed_for_the_card():
+def test_descriptions_keep_enough_text_for_the_expander():
+    # Cards show a short snippet, but "Read full description" needs the whole
+    # posting, so the stored text is only capped well beyond a card's worth.
     html = f"<div class='description__text'>{'word ' * 500}</div>"
     description = parse_job_details(html)["description"]
-    assert len(description) <= 601
+    assert 2000 < len(description) <= 6001
+
+
+def test_absurdly_long_descriptions_are_still_capped():
+    html = f"<div class='description__text'>{'word ' * 4000}</div>"
+    description = parse_job_details(html)["description"]
+    assert len(description) <= 6001
     assert description.endswith("…")
+
+
+def test_linkedin_expander_labels_are_stripped_from_the_text():
+    html = """
+    <div class="description__text"><section class="show-more-less-html">
+      <div class="show-more-less-html__markup">We build tools for teams.</div>
+      <button class="show-more-less-html__button">Show more</button>
+      <button class="show-more-less-html__button">Show less</button>
+    </section></div>
+    """
+    assert parse_job_details(html)["description"] == "We build tools for teams."

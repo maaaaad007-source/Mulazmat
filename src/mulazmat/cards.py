@@ -16,6 +16,13 @@ import streamlit as st
 
 from .models import Job
 
+#: Logo edge length, in px. Mirrored in the stylesheet and pinned on the <img>
+#: itself so a large source image can never blow out the card.
+LOGO_PX = 56
+
+#: How much description a card shows before the expander takes over.
+SNIPPET_CHARS = 200
+
 
 def _anchor(url: str, label: str, css: str = "") -> str:
     klass = f'class="{css}" ' if css else ""
@@ -33,9 +40,15 @@ def logo_html(job: Job) -> str:
     card the same shape.
     """
     if job.logo_url:
+        # Size is pinned on the element itself — width/height attributes plus an
+        # inline style — not only in the stylesheet. Logos arrive at whatever
+        # resolution the company uploaded, and if the class-based rules do not
+        # reach the image it renders at full size and swallows the card.
         return (
             f'<img class="mz-logo-img" src="{escape(job.logo_url, quote=True)}" '
             f'alt="{escape(job.company)} logo" loading="lazy" '
+            f'width="{LOGO_PX}" height="{LOGO_PX}" '
+            f'style="width:{LOGO_PX}px;height:{LOGO_PX}px;object-fit:contain;flex:none" '
             f'onerror="this.style.display=\'none\'">'
         )
     return f'<span class="mz-logo-fallback">{escape(job.initial)}</span>'
@@ -117,17 +130,34 @@ def contact_html(job: Job) -> str:
     return "".join(parts)
 
 
+def upper_html(job: Job, description: bool = True) -> str:
+    """Everything above the expander: logo, title, meta strip, snippet."""
+    body = [title_html(job), meta_row_html(job)]
+    if description and job.description:
+        body.append(f'<p class="mz-desc">{escape(snippet(job))}</p>')
+    return "".join(body)
+
+
 def card_html(job: Job, description: bool = True) -> str:
-    """Everything on a card except the save button, which must be a widget.
+    """The whole card except the widgets (save button, description expander).
 
     The description only exists on jobs that went through detail enrichment, so
     in practice it appears exactly when "Fetch full details" is on.
     """
-    body = [title_html(job), meta_row_html(job)]
-    if description and job.description:
-        body.append(f'<p class="mz-desc">{escape(job.description[:220])}…</p>')
-    body.append(contact_html(job))
-    return "".join(body)
+    return upper_html(job, description) + contact_html(job)
+
+
+def snippet(job: Job) -> str:
+    """The short description shown before the card is expanded."""
+    text = job.description.strip()
+    if len(text) <= SNIPPET_CHARS:
+        return text
+    return text[:SNIPPET_CHARS].rsplit(" ", 1)[0] + "…"
+
+
+def has_more(job: Job) -> bool:
+    """True when the posting has more description than the card is showing."""
+    return len(job.description.strip()) > SNIPPET_CHARS
 
 
 def render_grid(jobs: list[Job], saved: set[str], columns: int = 2) -> str | None:
@@ -152,6 +182,19 @@ def render_grid(jobs: list[Job], saved: set[str], columns: int = 2) -> str | Non
                     type="primary" if is_saved else "secondary",
                 ):
                     clicked = job.job_id
-                st.markdown(card_html(job), unsafe_allow_html=True)
+                # Rendered in two halves so the expander can sit with the
+                # description rather than below the Apply buttons.
+                st.markdown(upper_html(job), unsafe_allow_html=True)
+
+                # The full posting, without a trip to LinkedIn. Only offered
+                # when there is more text than the snippet already shows.
+                if has_more(job):
+                    with st.expander("Read full description"):
+                        st.markdown(
+                            f'<div class="mz-full">{escape(job.description)}</div>',
+                            unsafe_allow_html=True,
+                        )
+
+                st.markdown(contact_html(job), unsafe_allow_html=True)
 
     return clicked

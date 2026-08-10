@@ -39,7 +39,7 @@ def _demo_logo(company: str) -> str:
     """An inline SVG monogram, so demo cards exercise the <img> path offline."""
     hue = sum(ord(c) for c in company) % 360
     svg = (
-        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'>"
+        "<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 40 40'>"
         f"<rect width='40' height='40' rx='6' fill='hsl({hue},55%,88%)'/>"
         f"<text x='20' y='27' font-family='sans-serif' font-size='20' font-weight='700' "
         f"text-anchor='middle' fill='hsl({hue},45%,38%)'>{company[:1].upper()}</text></svg>"
@@ -95,7 +95,18 @@ def sample_jobs(
                     f"We are hiring a {full_title.lower()} to join {company}. "
                     "You will shape the work end to end, partner with teams across "
                     "the business, and help turn a messy problem into something "
-                    "people can actually use."
+                    "people can actually use. "
+                    "In this role you will run discovery, size the opportunity with "
+                    "the people closest to it, and ship in small increments that we "
+                    "can learn from. You will work alongside engineering, marketing "
+                    "and operations, and you will own the outcome rather than the "
+                    "output. "
+                    "What we ask for: a few years doing this work somewhere real, "
+                    "the judgement to know which corners are safe to cut, and the "
+                    "patience to explain your reasoning to people who do not share "
+                    "your background. "
+                    "What we offer: a small team, a short path from idea to "
+                    "production, and colleagues who will tell you when you are wrong."
                 )
                 if enriched
                 else "",

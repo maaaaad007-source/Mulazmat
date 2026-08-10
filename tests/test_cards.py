@@ -1,9 +1,13 @@
 from mulazmat.cards import (
+    LOGO_PX,
+    SNIPPET_CHARS,
     card_html,
     contact_html,
+    has_more,
     logo_html,
     meta_items,
     meta_row_html,
+    snippet,
     title_html,
 )
 from mulazmat.models import Job
@@ -74,6 +78,41 @@ def test_title_block_puts_the_logo_beside_the_text():
     html = title_html(FULL)
     assert "mz-head" in html and "mz-logo-box" in html
     assert html.index("mz-logo-box") < html.index("mz-title")
+
+
+def test_logo_size_is_pinned_on_the_element_itself():
+    # Not only in the stylesheet: a company logo arrives at whatever resolution
+    # was uploaded, and an unstyled <img> would swallow the card.
+    html = logo_html(
+        Job(job_id="9", title="T", company="A", location="B", url="", logo_url="https://x/y.png")
+    )
+    assert f'width="{LOGO_PX}" height="{LOGO_PX}"' in html
+    assert f"width:{LOGO_PX}px;height:{LOGO_PX}px" in html
+    assert "object-fit:contain" in html
+
+
+def test_short_descriptions_need_no_expander():
+    job = Job(job_id="1", title="T", company="C", location="L", url="", description="Short.")
+    assert snippet(job) == "Short."
+    assert not has_more(job)
+
+
+def test_long_descriptions_are_cut_at_a_word_and_offer_more():
+    job = Job(job_id="1", title="T", company="C", location="L", url="", description="word " * 200)
+    assert has_more(job)
+    assert len(snippet(job)) <= SNIPPET_CHARS + 1
+    assert snippet(job).endswith("…")
+    assert "wor…" not in snippet(job), "should break on a word boundary"
+
+
+def test_the_card_shows_the_snippet_not_the_whole_posting():
+    job = Job(
+        job_id="1", title="T", company="C", location="L", url="",
+        description="alpha " * 100 + "omega",
+    )
+    html = card_html(job)
+    assert "omega" not in html
+    assert "mz-desc" in html
 
 
 def test_meta_strip_is_workplace_type_and_age():

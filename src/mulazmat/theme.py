@@ -21,6 +21,9 @@ LINE = "#E3E7EB"
 CONTENT_WIDTH = "1400px"
 CONTENT_PAD = "5rem"
 
+#: Card logo edge length; kept in step with ``cards.LOGO_PX``.
+LOGO_PX = 56
+
 STYLES = f"""
 <style>
 :root {{
@@ -194,13 +197,35 @@ STYLES = f"""
 .mz-head {{ display: flex; gap: .85rem; align-items: flex-start; }}
 .mz-head-text {{ min-width: 0; flex: 1; }}
 .mz-logo-box {{
-  width: 46px; height: 46px; flex: none; border-radius: 8px;
-  border: 1px solid var(--mz-line); background: #fff; overflow: hidden;
-  display: flex; align-items: center; justify-content: center;
+  width: {LOGO_PX}px; height: {LOGO_PX}px; min-width: {LOGO_PX}px; flex: none;
+  border-radius: 9px; border: 1px solid var(--mz-line); background: #fff;
+  overflow: hidden; display: flex; align-items: center; justify-content: center;
 }}
-.mz-logo-img {{ width: 100%; height: 100%; object-fit: contain; }}
+.mz-logo-img {{
+  width: {LOGO_PX}px !important; height: {LOGO_PX}px !important;
+  max-width: {LOGO_PX}px; object-fit: contain;
+}}
 .mz-logo-fallback {{
-  font-weight: 700; font-size: 1.1rem; color: var(--mz-muted);
+  font-weight: 700; font-size: 1.3rem; color: var(--mz-muted);
+}}
+
+/* Full-description expander inside a card. */
+[class*="st-key-card_"] [data-testid="stExpander"] {{ border: none; margin-top: -.2rem; }}
+[class*="st-key-card_"] [data-testid="stExpander"] summary {{
+  padding: 0 0 .55rem !important; font-size: .78rem; font-weight: 600;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--mz-accent);
+  background: transparent !important; box-shadow: none !important;
+}}
+[class*="st-key-card_"] [data-testid="stExpander"] summary:hover {{
+  background: transparent !important; color: var(--mz-accent-dark);
+}}
+[class*="st-key-card_"] [data-testid="stExpander"] summary svg {{ fill: var(--mz-accent); }}
+[class*="st-key-card_"] [data-testid="stExpander"] details {{
+  border: none !important; background: transparent !important;
+}}
+.mz-full {{
+  font-size: .86rem; line-height: 1.6; color: #5C6874;
+  max-height: 22rem; overflow-y: auto; padding-right: .4rem; margin-bottom: .6rem;
 }}
 
 .mz-title {{

@@ -199,6 +199,15 @@ _EMPLOYMENT_TYPES = {
 _APPLY_URL_RE = re.compile(r"https?://[^\"'\s<>]+")
 
 
+#: Button labels LinkedIn renders inside the description block.
+_UI_NOISE = re.compile(r"\s*\b(Show more|Show less|See more|See less)\b\s*", re.IGNORECASE)
+
+
+def _strip_ui_text(text: str) -> str:
+    """Drop LinkedIn's own expander labels from scraped description text."""
+    return _UI_NOISE.sub(" ", text).strip()
+
+
 def _clean(text: str, limit: int = 600) -> str:
     """Collapse whitespace and trim to a card-sized snippet."""
     text = " ".join(text.split())
@@ -268,9 +277,12 @@ def parse_job_details(html: str) -> dict[str, str]:
     # Read this first so the visible page can override it where both exist.
     details.update(parse_json_ld(soup))
 
-    body = soup.select_one("div.description__text, div.show-more-less-html__markup")
+    # Prefer the inner markup node: the outer wrapper also contains LinkedIn's
+    # own "Show more"/"Show less" buttons, which otherwise land mid-sentence in
+    # the text. Stored long so a card can expand to the whole posting.
+    body = soup.select_one("div.show-more-less-html__markup, div.description__text")
     if body:
-        details["description"] = _clean(body.get_text(" ", strip=True))
+        details["description"] = _clean(_strip_ui_text(body.get_text(" ", strip=True)), 6000)
 
     for item in soup.select("li.description__job-criteria-item"):
         label = _text(item.select_one("h3, .description__job-criteria-subheader")).lower()
