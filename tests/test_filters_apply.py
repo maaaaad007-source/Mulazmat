@@ -25,21 +25,26 @@ def _searched(app: AppTest, title: str = "UX Designer") -> AppTest:
     return app.button(key="search").click().run()
 
 
-def _count(app: AppTest) -> int:
+def _fetched(app: AppTest) -> int:
+    """How many jobs were actually retrieved from LinkedIn."""
     # AppTest's session_state has no .get(), so check membership first.
     return len(app.session_state["results"]) if "results" in app.session_state else 0
 
 
-def test_apply_filters_reruns_the_search():
-    # Max results is the observable one in demo mode: fewer results means the
-    # search really did run again.
+def _shown(app: AppTest) -> int:
+    """How many cards are on screen after arranging."""
+    return len([b for b in app.button if b.key.startswith("save_")])
+
+
+def test_apply_filters_rearranges_without_searching_again():
     app = _searched(_app())
-    assert _count(app) == 40
+    assert _fetched(app) == 40 and _shown(app) == 40
 
     app.slider(key="limit").set_value(25).run()
     app = app.button(key="apply_filters").click().run()
 
-    assert _count(app) == 25, "applying filters left the old results in place"
+    assert _shown(app) == 25, "the cards on screen should have been trimmed"
+    assert _fetched(app) == 40, "trimming the count should not re-fetch anything"
 
 
 def test_apply_filters_still_collapses_the_panel():

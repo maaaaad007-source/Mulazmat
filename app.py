@@ -18,6 +18,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from mulazmat import countries, filters, job_titles, theme  # noqa: E402
+from mulazmat.arrange import arrange, needs_refetch  # noqa: E402
 from mulazmat.cards import render_grid  # noqa: E402
 from mulazmat.linkedin import LinkedInClient, LinkedInError  # noqa: E402
 from mulazmat.models import Job, SearchQuery  # noqa: E402
@@ -155,11 +156,10 @@ def _filters_panel() -> None:
     if st.button("Apply filters", key="apply_filters", width="stretch"):
         # Remount the popover so it comes back collapsed.
         st.session_state["filters_panel"] = st.session_state.get("filters_panel", 0) + 1
-        # Applying filters has to actually re-run the search. Without this the
-        # panel just closed and the old results stayed put, which made every
-        # filter — sort order especially — look like it did nothing.
-        if st.session_state.get("title"):
-            st.session_state["run_search"] = True
+        # Sorting, the date window and a smaller result count are all applied
+        # to the cards already on screen — no request needed. Only a filter
+        # LinkedIn itself has to act on sends us back for a new set.
+        st.session_state["apply_filters_pressed"] = True
         st.rerun()
 
 
@@ -275,21 +275,21 @@ def _render_table(frame: pd.DataFrame) -> None:
     )
 
 
-def _render_results(jobs: list[Job], query: SearchQuery) -> None:
+def _render_results(jobs: list[Job], query: SearchQuery, fetched: int = 0) -> None:
     state = st.session_state
     saved: set[str] = state.setdefault("saved", set())
     showing_saved = state.get("show_saved", False)
 
-    filtered = [job for job in jobs if job.matches_company(query.company)]
-    if showing_saved:
-        filtered = [job for job in filtered if job.job_id in saved]
+    # ``jobs`` arrives already arranged — company, date window, sort and count
+    # were applied by mulazmat.arrange.
+    filtered = [job for job in jobs if job.job_id in saved] if showing_saved else list(jobs)
 
     if not filtered:
         if showing_saved:
             st.info("No saved jobs yet — tap the ♡ on a card to save it.")
-        elif jobs and query.company:
+        elif fetched and query.company:
             st.warning(
-                f"{len(jobs)} jobs found, but none from a company matching "
+                f"{fetched} jobs found, but none from a company matching "
                 f"“{query.company}”. Try a shorter company name."
             )
         else:
@@ -322,8 +322,12 @@ def _render_results(jobs: list[Job], query: SearchQuery) -> None:
 run = _topbar()
 query = _query_from_state()
 
-# Search runs on the button, or when filters were applied to an existing query.
-run = run or st.session_state.pop("run_search", False)
+# Applying filters re-arranges what is on screen. It only goes back to LinkedIn
+# when a filter LinkedIn itself has to act on changed, or when more results are
+# wanted than were fetched.
+if st.session_state.pop("apply_filters_pressed", False) and query.keywords.strip():
+    wants_more = st.session_state.get("fetched_limit", 0) < st.session_state.get("limit", 100)
+    run = run or needs_refetch(st.session_state.get("fetched_with"), query) or wants_more
 
 if run:
     if not query.keywords.strip():
@@ -349,6 +353,10 @@ if run:
         else:
             st.session_state["results"] = raw
             st.session_state["demo"] = st.session_state.get("demo_mode", False)
+            # Remember what this set was fetched with, so a later Apply filters
+            # can tell a re-arrange from a genuine re-search.
+            st.session_state["fetched_with"] = query
+            st.session_state["fetched_limit"] = st.session_state.get("limit", 100)
             st.session_state["recent_titles"] = job_titles.remember(
                 st.session_state.get("recent_titles", ()), query.keywords
             )
@@ -365,7 +373,11 @@ if "results" in st.session_state:
     jobs = [Job(**row) for row in st.session_state["results"]]
     if workplace:
         jobs = [dataclasses.replace(job, workplace=job.workplace or workplace) for job in jobs]
-    _render_results(jobs, query)
+    # Sort order, date window, company and count are applied here, on every
+    # run, so changing them re-arranges what is on screen instantly.
+    _render_results(
+        arrange(jobs, query, st.session_state.get("limit", 100)), query, fetched=len(jobs)
+    )
 else:
     st.markdown(
         """

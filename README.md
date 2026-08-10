@@ -86,6 +86,29 @@ none, rather than inventing something.
 Most of that footer beyond the company page only appears with **Fetch full
 details** switched on, since it comes from the individual job page.
 
+## What "Apply filters" does
+
+Most filters are applied to the cards already on screen — instantly, with no
+request to LinkedIn:
+
+| Filter | How it is applied |
+| --- | --- |
+| Sort by | Locally. "Most recent" re-orders by posting date; "Most relevant" is LinkedIn's own ranking, so it is the order they arrived in. |
+| Date posted | Locally, from each card's date. |
+| Company | Locally, as you type. |
+| Max results | Locally when trimming. Asking for **more** than were fetched needs a new search. |
+| Workplace | **New search.** A search card does not say whether a role is remote. |
+| Experience level | **New search.** Not present on a search card at all. |
+
+So changing the sort order re-arranges what you are looking at, and only a
+filter LinkedIn itself has to act on sends you back for a new set. That
+boundary is `needs_refetch` in `src/mulazmat/arrange.py` — it is not a
+judgement call, it is simply which fields exist on a search card.
+
+One consequence worth knowing: with a date window active, a posting whose date
+we could not read is dropped rather than kept. "Posted in the last 24 hours" is
+an assertion, and an unknown date cannot support it.
+
 ## Speed, and the one dial that controls it
 
 Requests are strictly sequential — one at a time, with a deliberate pause
