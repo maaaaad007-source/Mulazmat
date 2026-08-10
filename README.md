@@ -130,7 +130,7 @@ pip install pytest
 pytest
 ```
 
-66 tests: HTML parsing against pinned real-world search and job-detail
+71 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), and end-to-end runs that drive the
 actual Streamlit app through `AppTest` — the top bar, the filters panel, title
