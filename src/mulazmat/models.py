@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Any
 
 
@@ -21,8 +21,38 @@ class Job:
     company_url: str = ""
     source: str = "linkedin"
 
+    # Filled in only when detail enrichment is switched on — see
+    # ``LinkedInClient.fetch_details``. All optional; LinkedIn omits most of
+    # them on most postings.
+    description: str = ""
+    seniority: str = ""
+    employment_type: str = ""
+    job_function: str = ""
+    industries: str = ""
+    applicants: str = ""
+    apply_url: str = ""
+    poster_name: str = ""
+    poster_title: str = ""
+    poster_profile: str = ""
+    enriched: bool = False
+
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    @property
+    def best_apply_url(self) -> str:
+        """Where "Apply" should point: the external URL if we have one."""
+        return self.apply_url or self.url
+
+    @property
+    def badges(self) -> tuple[str, ...]:
+        """Short labels shown as pills on the card."""
+        values = (self.employment_type, self.seniority, self.job_function)
+        return tuple(value for value in values if value)
+
+    def has_contact_links(self) -> bool:
+        """True when we have anything real to put under "Contact & apply"."""
+        return bool(self.best_apply_url or self.company_url or self.poster_profile)
 
     def matches_company(self, needle: str) -> bool:
         """Case-insensitive substring match against the company name."""

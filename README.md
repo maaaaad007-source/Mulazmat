@@ -30,9 +30,36 @@ UI with sample data, without touching LinkedIn.
 | Experience | Internship through Executive. |
 | Sort | Most relevant or most recent. |
 | Max results | 25–500. |
+| View | **Cards** (default) or **Table**. |
+| Fetch full details | Off by default. Opens each posting for its description, seniority, employment type, applicant count and apply link — one extra request per job, capped at the first N. |
 
-Results render as a sortable table with clickable links, plus a **Download CSV**
-button.
+Results render as styled cards — title, company, location, posted date, salary,
+badges, a description snippet and a **Contact & apply** footer — or as a sortable
+table. Either way there is a **Download CSV** button.
+
+## About "contact details"
+
+**LinkedIn job postings contain no recruiter emails and no phone numbers.** They
+are not in the search results, and they are not on the guest job page. Any tool
+promising them is either guessing addresses from a name-and-domain pattern or
+buying them from a data broker; this app does neither.
+
+What the **Contact & apply** footer on each card gives you is the real,
+published routes to a human:
+
+- **Apply** — the employer's own application URL when the posting has one
+  (LinkedIn hides it in the page source), otherwise the LinkedIn posting.
+- **Company page** — the company's LinkedIn page.
+- **Profile** — when a posting names the person who posted it, a link to their
+  public profile. Name and headline only; nothing is scraped beyond what
+  LinkedIn shows publicly.
+- **On LinkedIn** — the original posting, kept alongside an external apply link.
+
+Cards say "No public contact links on this posting" when a posting genuinely has
+none, rather than inventing something.
+
+Most of that footer beyond the company page only appears with **Fetch full
+details** switched on, since it comes from the individual job page.
 
 ## How it gets the jobs — and the honest caveats
 
@@ -69,12 +96,13 @@ wrong.
 ```
 app.py                      Streamlit UI
 src/mulazmat/
+  cards.py                  Card CSS + HTML rendering (escaped)
   countries.py              Country list, geoId hints, location strings
   filters.py                Date/experience/job-type/workplace vocabularies
   linkedin.py               Guest-endpoint client, pagination, HTML parsing
   models.py                 Job and SearchQuery
   sample_data.py            Offline demo results
-tests/                      Parser, filter and end-to-end UI tests
+tests/                      Parser, card, filter and end-to-end UI tests
 ```
 
 ## Tests
@@ -84,9 +112,10 @@ pip install pytest
 pytest
 ```
 
-21 tests: HTML-parsing against a pinned real-world card fragment, query-parameter
-construction, the country list, and end-to-end runs that drive the actual
-Streamlit app through `AppTest` in demo mode.
+42 tests: HTML parsing against pinned real-world search and job-detail
+fragments, query-parameter construction, the country list, card markup
+(including escaping of untrusted job titles), and end-to-end runs that drive the
+actual Streamlit app through `AppTest` in demo mode.
 
 Note that the test suite deliberately makes **no network calls** — the live
 endpoint is exercised by running the app, not by CI.

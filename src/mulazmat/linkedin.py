@@ -20,7 +20,9 @@ official job-board API if you need reliable bulk access.
 
 from __future__ import annotations
 
+import dataclasses
 import random
+import re
 import time
 from collections.abc import Callable, Iterator
 
@@ -30,6 +32,7 @@ from bs4 import BeautifulSoup
 from .models import Job, SearchQuery
 
 SEARCH_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
+JOB_DETAIL_URL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}"
 
 #: LinkedIn returns 10 cards per request and stops serving results past ~1000.
 PAGE_SIZE = 10
@@ -151,6 +154,80 @@ def parse_jobs_html(html: str) -> list[Job]:
     return jobs
 
 
+#: Criteria labels LinkedIn uses on the guest job page -> our field names.
+_CRITERIA_FIELDS = {
+    "seniority level": "seniority",
+    "employment type": "employment_type",
+    "job function": "job_function",
+    "industries": "industries",
+}
+
+_APPLY_URL_RE = re.compile(r"https?://[^\"'\s<>]+")
+
+
+def _clean(text: str, limit: int = 600) -> str:
+    """Collapse whitespace and trim to a card-sized snippet."""
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0] + "…"
+
+
+def parse_job_details(html: str) -> dict[str, str]:
+    """Pull the extra fields off a guest job-detail page.
+
+    Every field is optional — LinkedIn shows different subsets per posting, and
+    logged-out pages are the most sparse. Missing simply means "".
+
+    Note that no email address or phone number is ever extracted here. LinkedIn
+    does not publish them on job pages, and personal contact details are not
+    something this app collects.
+    """
+    if not html or not html.strip():
+        return {}
+
+    soup = BeautifulSoup(html, "html.parser")
+    details: dict[str, str] = {}
+
+    body = soup.select_one("div.description__text, div.show-more-less-html__markup")
+    if body:
+        details["description"] = _clean(body.get_text(" ", strip=True))
+
+    for item in soup.select("li.description__job-criteria-item"):
+        label = _text(item.select_one("h3, .description__job-criteria-subheader")).lower()
+        value = _text(item.select_one("span.description__job-criteria-text, span"))
+        field_name = _CRITERIA_FIELDS.get(label.strip())
+        if field_name and value:
+            details[field_name] = value
+
+    applicants = _text(soup.select_one("span.num-applicants__caption, figcaption"))
+    if applicants:
+        details["applicants"] = _clean(applicants, 60)
+
+    # LinkedIn hides the external apply target in a commented-out <code> block.
+    apply_node = soup.select_one("code#applyUrl")
+    if apply_node:
+        match = _APPLY_URL_RE.search(apply_node.decode_contents())
+        if match:
+            details["apply_url"] = match.group(0).replace("&amp;", "&")
+
+    # Some postings name the person who posted them. We surface their public
+    # profile link only — never a scraped email or phone number.
+    recruiter = soup.select_one("div.message-the-recruiter, section.message-the-recruiter")
+    if recruiter:
+        name = _text(recruiter.select_one("h3, .base-main-card__title"))
+        if name:
+            details["poster_name"] = name
+            details["poster_title"] = _text(
+                recruiter.select_one("h4, .base-main-card__subtitle")
+            )
+            profile = recruiter.select_one("a[href*='/in/']")
+            if profile:
+                details["poster_profile"] = (profile.get("href") or "").split("?", 1)[0]
+
+    return details
+
+
 class LinkedInClient:
     """Paged, rate-limit-aware reader for the guest job search endpoint."""
 
@@ -167,14 +244,17 @@ class LinkedInClient:
         self.max_retries = max_retries
         self.timeout = timeout
 
-    def _fetch_page(self, query: SearchQuery, start: int) -> str:
-        """Fetch one page of cards, retrying with backoff on 429/5xx."""
-        params = build_params(query, start)
+    def _get(self, url: str, params: dict[str, str] | None = None) -> str:
+        """GET ``url``, retrying with backoff on 429/5xx.
+
+        Returns "" for 400/404, which is how LinkedIn signals "nothing here"
+        rather than an actual error.
+        """
         last_error: Exception | None = None
 
         for attempt in range(self.max_retries):
             try:
-                response = self.session.get(SEARCH_URL, params=params, timeout=self.timeout)
+                response = self.session.get(url, params=params, timeout=self.timeout)
             except requests.RequestException as exc:  # network hiccup
                 last_error = exc
                 time.sleep(2**attempt)
@@ -212,7 +292,7 @@ class LinkedInClient:
         start = 0
 
         while yielded < limit and start <= MAX_START:
-            html = self._fetch_page(query, start)
+            html = self._get(SEARCH_URL, build_params(query, start))
             page = parse_jobs_html(html) if html else []
 
             new_on_page = 0
@@ -249,3 +329,49 @@ class LinkedInClient:
             if on_progress:
                 on_progress(len(jobs), limit)
         return jobs
+
+    def fetch_details(self, job: Job) -> Job:
+        """Return a copy of ``job`` with the detail-page fields filled in.
+
+        One extra HTTP request per job. Failures are swallowed and the original
+        job returned — a missing description should never break the results.
+        """
+        if not job.job_id:
+            return job
+
+        try:
+            html = self._get(JOB_DETAIL_URL.format(job_id=job.job_id))
+        except LinkedInError:
+            return job
+
+        details = parse_job_details(html)
+        if not details:
+            return job
+        return dataclasses.replace(job, **details, enriched=True)
+
+    def enrich(
+        self,
+        jobs: list[Job],
+        limit: int = 25,
+        on_progress: Callable[[int, int], None] | None = None,
+    ) -> list[Job]:
+        """Fetch detail pages for the first ``limit`` jobs, pacing requests.
+
+        This multiplies your request count, so it is opt-in in the UI and
+        capped. Jobs past ``limit`` are returned untouched.
+        """
+        target = min(limit, len(jobs))
+        enriched: list[Job] = []
+
+        for index, job in enumerate(jobs):
+            if index >= target:
+                enriched.append(job)
+                continue
+
+            enriched.append(self.fetch_details(job))
+            if on_progress:
+                on_progress(index + 1, target)
+            if index + 1 < target:
+                time.sleep(self.request_delay)
+
+        return enriched

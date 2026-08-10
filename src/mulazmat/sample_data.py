@@ -55,9 +55,30 @@ def sample_jobs(query: SearchQuery, limit: int = 40) -> list[Job]:
                 url=f"https://www.linkedin.com/jobs/view/{job_id}",
                 posted_at=posted.isoformat(),
                 posted_label=("today" if index % 21 == 0 else f"{index % 21} days ago"),
-                salary="",
-                company_url="",
+                salary="" if index % 3 else "PKR 250,000 - 400,000/mo",
+                company_url=f"https://www.linkedin.com/company/{company.split()[0].lower()}",
                 source="demo",
+                description=(
+                    f"We are hiring a {full_title.lower()} to join {company}. "
+                    "You will own reporting, build dashboards, and partner with "
+                    "product and finance teams to turn messy data into decisions."
+                ),
+                seniority=("Entry level" if index % 2 else "Mid-Senior level"),
+                employment_type=("Contract" if index % 5 == 0 else "Full-time"),
+                job_function="Analyst",
+                industries="Information Technology & Services",
+                applicants=f"{(index * 7) % 90 + 5} applicants",
+                apply_url=(
+                    f"https://careers.{company.split()[0].lower()}.example/jobs/{job_id}"
+                    if index % 3 == 0
+                    else ""
+                ),
+                poster_name=("Ayesha Khan" if index % 4 == 0 else ""),
+                poster_title=("Talent Acquisition Lead" if index % 4 == 0 else ""),
+                poster_profile=(
+                    "https://www.linkedin.com/in/ayesha-khan-demo" if index % 4 == 0 else ""
+                ),
+                enriched=True,
             )
         )
 
