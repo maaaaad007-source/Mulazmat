@@ -27,7 +27,7 @@ import re
 import threading
 import time
 from collections.abc import Callable, Iterator
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from bs4 import BeautifulSoup
@@ -647,14 +647,26 @@ class LinkedInClient:
         if not target:
             return list(jobs)
 
-        done = 0
+        wanted = list(jobs[:target])
+        rest = list(jobs[target:])
 
-        def fetch(job: Job) -> Job:
-            nonlocal done
-            result = self.fetch_details(job)
-            done += 1
-            if on_progress:
-                on_progress(done, target)
-            return result
+        if self.max_workers == 1 or target < 2:
+            enriched = []
+            for index, job in enumerate(wanted, start=1):
+                enriched.append(self.fetch_details(job))
+                if on_progress:
+                    on_progress(index, target)
+            return enriched + rest
 
-        return self._map(fetch, list(jobs[:target])) + list(jobs[target:])
+        results: list[Job] = list(wanted)
+        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
+            futures = {pool.submit(self.fetch_details, job): i for i, job in enumerate(wanted)}
+            # ``as_completed`` is iterated here, in the calling thread, so
+            # ``on_progress`` never runs on a worker. Streamlit calls made off
+            # the main thread have no script context and are dropped silently.
+            for done, future in enumerate(as_completed(futures), start=1):
+                results[futures[future]] = future.result()
+                if on_progress:
+                    on_progress(done, target)
+
+        return results + rest

@@ -126,7 +126,9 @@ If you still see "slow down", raise `MIN_INTERVAL` before touching
 `MAX_WORKERS`.
 
 `requests.Session` is not thread-safe, so each worker thread gets its own.
-Passing a session to `LinkedInClient` pins it to a single worker.
+Passing a session to `LinkedInClient` pins it to a single worker. Progress
+callbacks are invoked on the calling thread, never on a pool worker — Streamlit
+APIs are only valid on the thread running the script.
 
 ## How it gets the jobs — and the honest caveats
 
@@ -180,7 +182,7 @@ pip install pytest
 pytest
 ```
 
-105 tests: HTML parsing against pinned real-world search and job-detail
+108 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), and end-to-end runs that drive the
 actual Streamlit app through `AppTest` — the top bar, the filters panel, title

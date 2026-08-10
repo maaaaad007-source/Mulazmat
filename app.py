@@ -23,6 +23,14 @@ from mulazmat.linkedin import LinkedInClient, LinkedInError  # noqa: E402
 from mulazmat.models import Job, SearchQuery  # noqa: E402
 from mulazmat.sample_data import sample_jobs  # noqa: E402
 
+try:  # pragma: no cover - import path differs across Streamlit versions
+    from streamlit.runtime.scriptrunner_utils.exceptions import ScriptControlException
+except ImportError:  # pragma: no cover
+    try:
+        from streamlit.runtime.scriptrunner.exceptions import ScriptControlException
+    except ImportError:
+        ScriptControlException = ()  # type: ignore[assignment]
+
 st.set_page_config(
     page_title="Mulazmat — LinkedIn Job Search",
     page_icon="💼",
@@ -357,8 +365,14 @@ if run:
             )
         except LinkedInError as exc:
             st.error(str(exc))
+        except ScriptControlException:
+            # st.rerun()/st.stop() and Streamlit's own "this run is over" signal
+            # travel as exceptions with an empty message. Swallowing them here
+            # both broke the rerun and printed a blank "Search failed:".
+            raise
         except Exception as exc:  # noqa: BLE001 — surface anything else to the user
-            st.error(f"Search failed: {exc}")
+            detail = str(exc).strip() or "no further detail"
+            st.error(f"Search failed — {type(exc).__name__}: {detail}")
         else:
             st.session_state["results"] = raw
             st.session_state["notice"] = notice

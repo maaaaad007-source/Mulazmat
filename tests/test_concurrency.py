@@ -105,6 +105,20 @@ def test_progress_is_reported_once_per_job():
     assert max(seen) == 12
 
 
+def test_progress_is_reported_on_the_calling_thread():
+    # Streamlit APIs are only valid on the thread running the script, so a
+    # progress callback must never be invoked from a pool worker.
+    client = _SlowClient(latency=0.01, max_workers=4)
+    caller = threading.current_thread().ident
+    threads: list[int] = []
+
+    client.enrich(
+        _jobs(8), limit=8, on_progress=lambda *_: threads.append(threading.current_thread().ident)
+    )
+
+    assert threads and set(threads) == {caller}
+
+
 def test_search_pages_are_fetched_in_parallel_but_yielded_in_order():
     client = _SlowClient(pages=5, latency=0.05, max_workers=8)
 

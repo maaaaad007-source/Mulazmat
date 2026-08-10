@@ -139,6 +139,25 @@ def test_no_workplace_filter_leaves_the_label_alone():
     assert app.session_state["searched_workplace"] == ""
 
 
+def test_streamlit_control_flow_is_not_swallowed_as_a_search_failure():
+    # st.rerun()/st.stop() travel as exceptions whose message is empty, so a
+    # blanket `except Exception` both broke the rerun and rendered a bare
+    # "Search failed:" with nothing after it.
+    import app as app_module
+
+    assert app_module.ScriptControlException is not ()
+    source = Path(app_module.__file__).read_text()
+    assert "except ScriptControlException:" in source
+    assert source.index("except ScriptControlException:") < source.index("except Exception as exc:")
+
+
+def test_unexpected_failures_name_their_exception_type():
+    import app as app_module
+
+    source = Path(app_module.__file__).read_text()
+    assert "type(exc).__name__" in source, "a bare message leaves nothing to diagnose"
+
+
 def test_country_selection_seeds_the_geo_id():
     app = _app()
     app.selectbox(key="country").set_value("Netherlands").run()
