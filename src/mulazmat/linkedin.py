@@ -39,6 +39,16 @@ JOB_DETAIL_URL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_i
 PAGE_SIZE = 10
 MAX_START = 975
 
+#: Seconds of deliberate idling between requests. Requests stay strictly
+#: sequential — one at a time, waiting in between — because that is what has
+#: proved stable; this only trims the waiting.
+#:
+#: 0.6s is roughly 1.7 requests a second. For comparison, the version that
+#: earned an immediate HTTP 429 issued eight at once with no gap at all. If
+#: "slow down" messages ever come back, raise this first: it is the one dial
+#: that matters, and nothing else here needs to change.
+REQUEST_DELAY = 0.6
+
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -365,7 +375,7 @@ class LinkedInClient:
     def __init__(
         self,
         session: requests.Session | None = None,
-        request_delay: float = 1.5,
+        request_delay: float = REQUEST_DELAY,
         max_retries: int = 3,
         timeout: float = 20.0,
     ) -> None:
@@ -475,7 +485,8 @@ class LinkedInClient:
         """
         labels: dict[str, str] = {}
 
-        for code, label in (("2", "Remote"), ("3", "Hybrid")):
+        probes = (("2", "Remote"), ("3", "Hybrid"))
+        for index, (code, label) in enumerate(probes):
             probe = dataclasses.replace(query, workplace_types=(code,))
             try:
                 for job in self.iter_jobs(probe, limit):
@@ -484,7 +495,9 @@ class LinkedInClient:
             except LinkedInError:
                 # A failed probe just means fewer labels, never a failed search.
                 break
-            time.sleep(self.request_delay)
+            # Between probes only — idling after the last one buys nothing.
+            if index + 1 < len(probes):
+                time.sleep(self.request_delay)
 
         return labels
 

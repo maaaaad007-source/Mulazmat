@@ -85,6 +85,20 @@ none, rather than inventing something.
 Most of that footer beyond the company page only appears with **Fetch full
 details** switched on, since it comes from the individual job page.
 
+## Speed, and the one dial that controls it
+
+Requests are strictly sequential — one at a time, with a deliberate pause
+between them. `REQUEST_DELAY` in `src/mulazmat/linkedin.py` sets that pause;
+it is 0.6s, or roughly 1.7 requests a second.
+
+At ~250ms per request that works out around 8s for 100 results with details
+off, and around 29s with details on for the first 25.
+
+**If "slow down" messages appear, raise `REQUEST_DELAY` — do not add
+concurrency.** An earlier version fired eight requests at once with no gap and
+was rate limited on its first search. The delay is the safe dial; parallelism
+is not.
+
 ## Restore point
 
 `known-good-v1-backup` is a branch pinned to this version — search, cards,
