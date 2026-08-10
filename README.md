@@ -85,6 +85,24 @@ none, rather than inventing something.
 Most of that footer beyond the company page only appears with **Fetch full
 details** switched on, since it comes from the individual job page.
 
+## Restore point
+
+`known-good-v1-backup` is a branch pinned to this version — search, cards,
+saved jobs, autocomplete, CSV export, 89 tests passing. If a later change
+breaks something, that branch is the way back:
+
+```bash
+# look at it without changing anything
+git checkout known-good-v1-backup
+
+# or reset your working branch to it, discarding what came after
+git checkout <your-branch>
+git reset --hard known-good-v1-backup
+```
+
+Leave that branch alone — its only job is to keep pointing here. Cut a new
+one (`known-good-v2` …) when there is a newer version worth trusting.
+
 ## How it gets the jobs — and the honest caveats
 
 LinkedIn has **no public jobs API**. This app reads the same endpoint LinkedIn's
