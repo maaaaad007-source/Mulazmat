@@ -10,11 +10,16 @@ hashes, which change between releases.
 
 from __future__ import annotations
 
-ACCENT = "#F76C6C"
-ACCENT_DARK = "#E45252"
+ACCENT = "#E8746E"
+ACCENT_DARK = "#D65E58"
 INK = "#2E3A46"
 MUTED = "#8A94A0"
 LINE = "#E3E7EB"
+
+#: Streamlit's ``.block-container`` geometry. The sticky bar is full-bleed, so
+#: it needs these to line its contents back up with the cards below it.
+CONTENT_WIDTH = "1400px"
+CONTENT_PAD = "5rem"
 
 STYLES = f"""
 <style>
@@ -32,70 +37,109 @@ STYLES = f"""
    meant for the Filters button. The design supplies its own bar, so drop it.
    Delete this rule to get the hamburger/Deploy menu back. */
 [data-testid="stHeader"] {{ display: none !important; }}
-.block-container {{ padding-top: 1.1rem; max-width: 1400px; }}
+.block-container {{ padding-top: 0 !important; max-width: 1400px; }}
 
 /* ---- Top search bar ----------------------------------------------------
    Styled via the container's st-key class rather than a wrapper <div>: a div
    opened in st.markdown is closed by Streamlit before the widgets render, so
-   it can never actually contain them. */
+   it can never actually contain them.
+
+   Full-bleed so the rule under the bar spans the window, with padding that
+   lines the controls back up with the page container. z-index stays low
+   enough that the Filters popover opens over the bar, not under it. */
 [class*="st-key-topbar"] {{
-  position: sticky; top: 0; z-index: 60;
-  background: #fff; border-bottom: 1px solid var(--mz-line);
-  margin: -1.1rem -1rem 1.4rem; padding: .85rem 1.25rem .6rem;
+  position: sticky; top: 0; z-index: 5;
+  padding-block: .75rem; margin-bottom: 1.6rem;
 }}
+/* Streamlit forces the container's width, so the bar cannot be stretched to
+   the window itself. This backdrop paints the white band and its rule edge to
+   edge behind the controls, which stay aligned with the cards below. */
+[class*="st-key-topbar"]::before {{
+  content: ""; position: absolute; top: 0; bottom: 0; left: 50%;
+  transform: translateX(-50%); width: 100vw; z-index: -1;
+  background: #fff; border-bottom: 1px solid var(--mz-line);
+}}
+[class*="st-key-topbar"] [data-testid="stHorizontalBlock"] {{ align-items: center; }}
+[class*="st-key-topbar"] [data-testid="stElementContainer"] {{ margin: 0; }}
+
 .mz-logo {{
-  width: 42px; height: 42px; border-radius: 13px; background: var(--mz-accent);
+  width: 44px; height: 44px; border-radius: 14px; background: var(--mz-accent);
   display: flex; align-items: center; justify-content: center;
 }}
 .mz-logo span {{
-  width: 15px; height: 15px; border-radius: 50%;
+  width: 14px; height: 14px; border-radius: 50%;
   border: 4px solid #fff; display: block;
 }}
 
-/* Inputs in the bar: flat, grey-bordered, no focus glow. */
+/* Every control in the bar is the same height and sits on the same baseline. */
+[class*="st-key-topbar"] [data-baseweb="base-input"],
+[class*="st-key-topbar"] [data-baseweb="input"],
+[class*="st-key-topbar"] [data-baseweb="select"] > div,
+[class*="st-key-topbar"] button {{
+  height: 46px !important; min-height: 46px !important;
+  border-radius: 7px !important; box-shadow: none !important;
+}}
+[class*="st-key-topbar"] [data-baseweb="base-input"],
 [class*="st-key-topbar"] [data-baseweb="input"],
 [class*="st-key-topbar"] [data-baseweb="select"] > div {{
-  border-radius: 6px !important; border: 1px solid var(--mz-line) !important;
-  box-shadow: none !important; min-height: 46px; font-size: .95rem;
-  background: #fff !important;
+  border: 1px solid var(--mz-line) !important; background: #fff !important;
+  font-size: .95rem;
 }}
-[class*="st-key-topbar"] input {{ background: transparent !important; }}
+[class*="st-key-topbar"] input {{ background: transparent !important; font-size: .95rem; }}
 [class*="st-key-topbar"] input::placeholder {{ color: #A9B2BC; }}
 
 /* SEARCH + APPLY FILTERS */
 [class*="st-key-search"] button, [class*="st-key-apply_filters"] button {{
   background: var(--mz-accent) !important; border: 1px solid var(--mz-accent) !important;
-  color: #fff !important; border-radius: 6px; min-height: 46px;
-  letter-spacing: .12em; font-size: .8rem; font-weight: 600; text-transform: uppercase;
+  color: #fff !important; letter-spacing: .14em; font-size: .78rem;
+  font-weight: 600; text-transform: uppercase;
 }}
 [class*="st-key-search"] button:hover, [class*="st-key-apply_filters"] button:hover {{
   background: var(--mz-accent-dark) !important; border-color: var(--mz-accent-dark) !important;
 }}
-[class*="st-key-apply_filters"] button {{ min-height: 42px; }}
 
-/* Filters trigger + saved-jobs heart */
+/* Filters trigger + saved-jobs toggle */
 [class*="st-key-filters"] button, [class*="st-key-saved_toggle"] button {{
   border: 1px solid var(--mz-line) !important; background: #fff !important;
-  border-radius: 6px; min-height: 46px; color: var(--mz-ink) !important;
-  font-weight: 400; box-shadow: none !important;
+  color: var(--mz-ink) !important; font-weight: 400;
 }}
-[class*="st-key-saved_toggle"] button {{ color: var(--mz-accent) !important; font-size: 1.15rem; }}
-[data-testid="stPopoverBody"] {{ width: 26rem; max-width: 92vw; }}
+[class*="st-key-saved_toggle"] button {{
+  color: var(--mz-accent) !important; padding: 0 !important;
+  justify-content: center;
+}}
+[class*="st-key-saved_toggle"] button[kind="primary"] {{
+  background: var(--mz-accent) !important; color: #fff !important;
+  border-color: var(--mz-accent) !important;
+}}
 
 /* ---- Filters panel ----------------------------------------------------- */
+[data-testid="stPopoverBody"] {{
+  width: 24rem; max-width: 92vw; padding: 1.1rem 1.25rem .9rem !important;
+}}
+/* Streamlit's default 1rem gap between every widget makes the panel far taller
+   than it needs to be; tighten it and let the group headings do the spacing. */
+[data-testid="stPopoverBody"] [data-testid="stVerticalBlock"] {{ gap: .3rem; }}
+[data-testid="stPopoverBody"] [data-testid="stCheckbox"],
+[data-testid="stPopoverBody"] [data-testid="stRadio"] {{ margin: 0; }}
+[data-testid="stPopoverBody"] [data-testid="stRadio"] label {{ padding: .1rem 0; }}
+[data-testid="stPopoverBody"] [data-testid="stCheckbox"] label {{ padding: .12rem 0; }}
+[data-testid="stPopoverBody"] [data-testid="stSlider"] {{ padding: 0 .3rem; }}
+
 .mz-fgroup {{
   font-weight: 700; font-size: .95rem; color: var(--mz-ink);
-  margin: .2rem 0 .1rem;
+  margin: 1.1rem 0 .45rem;
 }}
+.mz-fgroup:first-child {{ margin-top: 0; }}
 .mz-fgroup::after {{
   content: ""; display: block; width: 34px; height: 2px;
-  background: var(--mz-line); margin-top: .45rem;
+  background: #D8DEE4; margin-top: .45rem;
 }}
+[class*="st-key-apply_filters"] {{ padding-top: 1rem; }}
+[class*="st-key-apply_filters"] button {{ height: 42px; }}
 
 /* ---- Result cards ------------------------------------------------------ */
-.mz-count {{ font-weight: 700; font-size: 1.05rem; color: var(--mz-ink); margin: .2rem 0 .9rem; }}
+.mz-count {{ font-weight: 700; font-size: 1.05rem; color: var(--mz-ink); margin: 0 0 .2rem; }}
 
-/* Cards fill their row so a short posting does not leave a ragged grid. */
 [data-testid="stHorizontalBlock"] {{ align-items: stretch; }}
 [data-testid="stColumn"] {{ display: flex; align-items: stretch; }}
 [data-testid="stColumn"] > div {{ width: 100%; height: 100%; }}
@@ -106,64 +150,67 @@ STYLES = f"""
 [class*="st-key-card_"] {{
   position: relative;
   border: 1px solid var(--mz-line) !important; border-radius: 10px !important;
-  padding: 1.35rem 1.5rem 1.15rem !important; background: #fff;
-  height: 100%;
+  padding: 1.3rem 1.4rem 1.25rem !important; background: #fff; height: 100%;
 }}
 [class*="st-key-card_"]:hover {{ border-color: #CFD6DD !important; }}
-/* Push the contact footer to the bottom edge of every card in the row. */
 [class*="st-key-card_"] > div {{ height: 100%; }}
+[class*="st-key-card_"] [data-testid="stElementContainer"] {{ margin: 0; }}
 
 .mz-title {{
-  font-size: 1.28rem; font-weight: 700; line-height: 1.3;
-  margin: 0 0 .85rem; padding-right: 2rem;
+  font-size: 1.15rem; font-weight: 700; line-height: 1.35;
+  margin: 0 0 .55rem; padding-right: 2rem;
 }}
 .mz-title a {{ color: var(--mz-ink); text-decoration: none; }}
 .mz-title a:hover {{ color: var(--mz-accent); }}
-.mz-sub {{ font-size: 1rem; color: var(--mz-ink); margin: 0; line-height: 1.6; }}
+.mz-sub {{ font-size: .95rem; color: var(--mz-ink); margin: 0; line-height: 1.5; }}
 .mz-sub a {{ color: var(--mz-ink); text-decoration: none; }}
 .mz-sub a:hover {{ color: var(--mz-accent); }}
-.mz-sub--muted {{ color: #5C6874; }}
+.mz-sub--muted {{ color: #667180; }}
 
 .mz-meta {{
   display: flex; justify-content: space-between; gap: 1rem;
   border-top: 1px solid var(--mz-line); border-bottom: 1px solid var(--mz-line);
-  margin: 1.1rem 0 1rem; padding: .8rem 0;
-  font-size: .78rem; letter-spacing: .09em; text-transform: uppercase; color: #6C7783;
+  margin: .95rem 0 .9rem; padding: .6rem 0;
+  font-size: .73rem; letter-spacing: .1em; text-transform: uppercase; color: #78838F;
 }}
 .mz-meta span:last-child {{ text-align: right; white-space: nowrap; }}
+.mz-meta--single {{ justify-content: flex-start; }}
 
 .mz-contact-label {{
-  font-size: .72rem; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--mz-muted); margin: 0 0 .7rem;
+  font-size: .7rem; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--mz-muted); margin: 0 0 .6rem;
 }}
-.mz-poster {{ font-size: .85rem; color: #5C6874; margin: 0 0 .7rem; }}
-.mz-desc {{ font-size: .88rem; line-height: 1.55; color: #5C6874; margin: 0 0 .2rem; }}
+.mz-poster {{ font-size: .84rem; color: #667180; margin: 0 0 .55rem; }}
+.mz-desc {{ font-size: .86rem; line-height: 1.55; color: #667180; margin: 0 0 .2rem; }}
 
-.mz-links {{ display: flex; flex-wrap: wrap; gap: .6rem; }}
+.mz-links {{ display: flex; flex-wrap: wrap; gap: .5rem; }}
 .mz-card-link {{
-  display: inline-block; padding: .6rem 1.15rem; border-radius: 5px;
+  display: inline-block; padding: .5rem 1rem; border-radius: 5px;
   border: 1px solid var(--mz-accent); color: var(--mz-accent) !important;
-  font-size: .78rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
-  text-decoration: none !important; white-space: nowrap;
+  font-size: .72rem; font-weight: 600; letter-spacing: .11em; text-transform: uppercase;
+  text-decoration: none !important; white-space: nowrap; line-height: 1.35;
 }}
-.mz-card-link:hover {{ background: rgba(247, 108, 108, .07); }}
+.mz-card-link:hover {{ background: rgba(232, 116, 110, .08); }}
 .mz-none {{ font-size: .8rem; color: var(--mz-muted); margin: 0; }}
 
-/* Per-card save heart: a real button (HTML cannot call back into Python),
+/* Per-card save button: a real widget (HTML cannot call back into Python),
    lifted out of the flow into the card's top-right corner. */
 [class*="st-key-save_"] {{
-  position: absolute; top: 1.1rem; right: 1.2rem; z-index: 2; width: auto !important;
+  position: absolute; top: 1rem; right: 1.1rem; z-index: 2; width: auto !important;
 }}
 [class*="st-key-save_"] button {{
   border: none !important; background: transparent !important; box-shadow: none !important;
-  color: #C4CBD2 !important; font-size: 1.35rem; padding: 0 !important;
-  min-height: 0 !important; line-height: 1;
+  color: #C4CBD2 !important; padding: 0 !important; min-height: 0 !important;
+  height: auto !important; line-height: 1;
 }}
 [class*="st-key-save_"] button:hover {{ color: var(--mz-accent) !important; }}
-[class*="st-key-save_"] button[kind="primary"] {{ color: var(--mz-accent) !important; }}
+[class*="st-key-save_"] button[kind="primary"] {{
+  background: transparent !important; color: var(--mz-accent) !important;
+}}
 
 @media (max-width: 640px) {{
-  .mz-meta {{ flex-direction: column; gap: .35rem; }}
+  [class*="st-key-topbar"] {{ padding-inline: 1rem; }}
+  .mz-meta {{ flex-direction: column; gap: .3rem; }}
   .mz-meta span:last-child {{ text-align: left; }}
 }}
 </style>

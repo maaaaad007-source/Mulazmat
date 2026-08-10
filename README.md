@@ -19,15 +19,15 @@ UI with sample data, without touching LinkedIn.
 ## Layout
 
 A single horizontal bar across the top — logo, job title, company, country,
-**Search**, **Filters**, and a **♥** that switches to your saved jobs. There is
+**Search**, **Filters**, and a bookmark that switches to your saved jobs. There is
 no sidebar. Everything secondary lives in the **Filters** dropdown: sort, date
 posted, workplace, experience level, max results, card/table view, detail
 fetching, demo mode and the geoId override.
 
 Results are a two-up grid of cards: title, company, location, a
 workplace / job-type / age strip, and the **Contact & apply** footer. Each card
-has a **♥** to save it; saved jobs live in the session, so they clear when the
-browser tab is closed.
+has a bookmark to save it; saved jobs live in the session, so they clear when
+the browser tab is closed. **Apply filters** closes the panel.
 
 Streamlit's own header is hidden so it cannot sit on top of the **Filters**
 button — delete the `[data-testid="stHeader"]` rule in `src/mulazmat/theme.py`
@@ -128,7 +128,7 @@ pip install pytest
 pytest
 ```
 
-46 tests: HTML parsing against pinned real-world search and job-detail
+47 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), and end-to-end runs that drive the
 actual Streamlit app through `AppTest` — the top bar, the filters panel, saving

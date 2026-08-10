@@ -53,8 +53,11 @@ def meta_row_html(job: Job) -> str:
     items = meta_items(job)
     if not items:
         return ""
+    # Spreading a lone value across the full width just looks like a mistake,
+    # so a single-item strip stays left-aligned.
+    css = "mz-meta" if len(items) > 1 else "mz-meta mz-meta--single"
     cells = "".join(f"<span>{escape(item)}</span>" for item in items)
-    return f'<div class="mz-meta">{cells}</div>'
+    return f'<div class="{css}">{cells}</div>'
 
 
 def contact_html(job: Job) -> str:
@@ -116,8 +119,9 @@ def render_grid(jobs: list[Job], saved: set[str], columns: int = 2) -> str | Non
             with column, st.container(border=True, key=f"card_{job.job_id or row_start}"):
                 is_saved = job.job_id in saved
                 if st.button(
-                    "♥",
+                    "",
                     key=f"save_{job.job_id or row_start}",
+                    icon=":material/bookmark:" if is_saved else ":material/bookmark_border:",
                     help="Remove from saved" if is_saved else "Save this job",
                     type="primary" if is_saved else "secondary",
                 ):

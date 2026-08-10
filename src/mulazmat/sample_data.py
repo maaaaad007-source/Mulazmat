@@ -12,19 +12,19 @@ from datetime import date, timedelta
 
 from .models import Job, SearchQuery
 
-# Each company carries its own real-looking location, so demo results never
-# read "London, Pakistan" just because Pakistan was the country searched.
+# Each company carries its own location, so demo results never read
+# "London, Germany" just because Germany was the country searched.
 _COMPANIES = (
-    ("Systems Limited", "Lahore, Pakistan"),
-    ("Netsol Technologies", "Lahore, Pakistan"),
-    ("Careem", "Karachi, Pakistan"),
+    ("Northwind Studio", "Amsterdam, North Holland, Netherlands"),
     ("Acme Analytics", "Remote"),
     ("Globex Health", "London, United Kingdom"),
     ("Initech", "Berlin, Germany"),
-    ("Umbrella Retail", "Toronto, Canada"),
+    ("Umbrella Retail", "Toronto, Ontario, Canada"),
     ("Hooli", "San Francisco, CA, United States"),
     ("Stark Industries", "Dubai, United Arab Emirates"),
-    ("Booking.com", "Amsterdam, Netherlands"),
+    ("Vandelay Interactive", "Utrecht, Netherlands"),
+    ("Soylent Foods", "Singapore"),
+    ("Wayne Digital", "Sydney, NSW, Australia"),
 )
 
 _SENIORITY = ("Junior", "", "Senior", "Lead", "Principal")
@@ -33,6 +33,8 @@ _ARRANGEMENT = ("On-site", "Hybrid", "Remote")
 
 def sample_jobs(query: SearchQuery, limit: int = 40) -> list[Job]:
     """Deterministic fake results shaped by the user's query."""
+    # Echoed back exactly as typed — .title() would turn "UX designer" into
+    # "Ux Designer".
     title = query.keywords.strip() or "Software Engineer"
     today = date.today()
 
@@ -56,7 +58,7 @@ def sample_jobs(query: SearchQuery, limit: int = 40) -> list[Job]:
                 url=f"https://www.linkedin.com/jobs/view/{job_id}",
                 posted_at=posted.isoformat(),
                 posted_label=("today" if index % 21 == 0 else f"{index % 21} days ago"),
-                salary="" if index % 3 else "PKR 250,000 - 400,000/mo",
+                salary="" if index % 3 else "€5,500 - 7,000/mo",
                 company_url=f"https://www.linkedin.com/company/{company.split()[0].lower()}",
                 source="demo",
                 description=(
@@ -75,10 +77,10 @@ def sample_jobs(query: SearchQuery, limit: int = 40) -> list[Job]:
                     if index % 3 == 0
                     else ""
                 ),
-                poster_name=("Ayesha Khan" if index % 4 == 0 else ""),
+                poster_name=("Sofie de Vries" if index % 4 == 0 else ""),
                 poster_title=("Talent Acquisition Lead" if index % 4 == 0 else ""),
                 poster_profile=(
-                    "https://www.linkedin.com/in/ayesha-khan-demo" if index % 4 == 0 else ""
+                    "https://www.linkedin.com/in/sofie-de-vries-demo" if index % 4 == 0 else ""
                 ),
                 enriched=True,
             )

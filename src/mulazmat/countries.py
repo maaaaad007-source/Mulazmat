@@ -2,7 +2,7 @@
 
 ``COUNTRIES`` is the ISO 3166-1 set of country names. The Streamlit selectbox
 renders them sorted alphabetically and is type-to-search, so the user can jump
-straight to "Pakistan" without scrolling.
+straight to "Netherlands" without scrolling.
 
 ``GEO_IDS`` maps a handful of countries to LinkedIn's internal ``geoId``. Those
 ids make the search noticeably more accurate, but LinkedIn does not publish

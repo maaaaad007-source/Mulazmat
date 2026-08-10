@@ -12,8 +12,8 @@ FRAGMENT = """
     <h4 class="base-search-card__subtitle">
       <a class="hidden-nested-link" href="https://www.linkedin.com/company/acme?trk=x">Acme</a>
     </h4>
-    <span class="job-search-card__location">Lahore, Punjab, Pakistan</span>
-    <span class="job-search-card__salary-info"> PKR 200,000/mo </span>
+    <span class="job-search-card__location">Amsterdam, North Holland, Netherlands</span>
+    <span class="job-search-card__salary-info"> €6,500/mo </span>
     <time class="job-search-card__listdate" datetime="2026-08-01">1 week ago</time>
   </div>
 </li>
@@ -36,8 +36,8 @@ def test_parses_cards():
     assert first.job_id == "4012345678"
     assert first.title == "Data Analyst"
     assert first.company == "Acme"
-    assert first.location == "Lahore, Punjab, Pakistan"
-    assert first.salary == "PKR 200,000/mo"
+    assert first.location == "Amsterdam, North Holland, Netherlands"
+    assert first.salary == "€6,500/mo"
     assert first.posted_at == "2026-08-01"
     assert first.posted_label == "1 week ago"
     # Tracking params are stripped from both links.
@@ -73,8 +73,8 @@ def test_build_params_minimal_query():
 def test_build_params_full_query():
     query = SearchQuery(
         keywords="data analyst",
-        location="Pakistan",
-        geo_id="101022442",
+        location="Netherlands",
+        geo_id="102890719",
         date_posted="r604800",
         experience_levels=("2", "3"),
         job_types=("F",),
@@ -84,8 +84,8 @@ def test_build_params_full_query():
     params = build_params(query, start=20)
 
     assert params["start"] == "20"
-    assert params["location"] == "Pakistan"
-    assert params["geoId"] == "101022442"
+    assert params["location"] == "Netherlands"
+    assert params["geoId"] == "102890719"
     assert params["f_TPR"] == "r604800"
     assert params["f_E"] == "2,3"
     assert params["f_JT"] == "F"

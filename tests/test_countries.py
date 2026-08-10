@@ -17,15 +17,15 @@ def test_every_geo_id_maps_to_a_real_country():
 
 
 def test_geo_id_lookup():
-    assert countries.geo_id_for("Pakistan") == "101022442"
+    assert countries.geo_id_for("Netherlands") == "102890719"
     assert countries.geo_id_for("Tuvalu") == ""
 
 
 def test_location_string():
-    assert countries.location_string("Pakistan") == "Pakistan"
-    assert countries.location_string("Pakistan", "Lahore") == "Lahore, Pakistan"
+    assert countries.location_string("Netherlands") == "Netherlands"
+    assert countries.location_string("Netherlands", "Utrecht") == "Utrecht, Netherlands"
     assert countries.location_string(countries.ANYWHERE) == ""
-    assert countries.location_string(countries.ANYWHERE, "Lahore") == "Lahore"
+    assert countries.location_string(countries.ANYWHERE, "Utrecht") == "Utrecht"
 
 
 def test_values_for_translates_labels_and_skips_unknowns():

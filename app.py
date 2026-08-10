@@ -128,14 +128,21 @@ def _filters_panel() -> None:
         "free text instead. Override if results look off.",
     )
 
-    st.button("Apply filters", key="apply_filters", width="stretch")
+    if st.button("Apply filters", key="apply_filters", width="stretch"):
+        # Remount the popover so it comes back collapsed.
+        st.session_state["filters_panel"] = st.session_state.get("filters_panel", 0) + 1
+        st.rerun()
 
 
 def _topbar() -> bool:
     """Draw the search bar. Returns True when Search was pressed."""
     with st.container(key="topbar"):
+        # Ratios chosen so every control stretches to fill its column and the
+        # row ends flush with the cards below.
         logo, title, company, country, search, filt, saved = st.columns(
-            [0.6, 3, 3, 2.6, 2, 1.8, 0.7], vertical_alignment="center", gap="small"
+            [0.55, 3.1, 3.1, 2.6, 1.9, 1.7, 0.45],
+            vertical_alignment="center",
+            gap="small",
         )
 
         logo.markdown(theme.LOGO, unsafe_allow_html=True)
@@ -162,15 +169,22 @@ def _topbar() -> bool:
 
         run = search.button("Search", key="search", width="stretch")
 
-        with filt.popover("Filters", width="stretch"):
+        # Streamlit has no API to close a popover, but remounting the element
+        # renders it closed — so "Apply filters" bumps this counter and the new
+        # key gives us a fresh, collapsed panel. Widget state is unaffected;
+        # each control inside keeps its own key.
+        panel = st.session_state.get("filters_panel", 0)
+        with filt.popover("Filters", key=f"filters_{panel}", width="stretch"):
             _filters_panel()
 
         showing = st.session_state.get("show_saved", False)
         if saved.button(
-            "♥",
+            "",
             key="saved_toggle",
+            icon=":material/bookmark:",
             help="Show all jobs" if showing else "Show saved jobs",
             type="primary" if showing else "secondary",
+            width="stretch",
         ):
             st.session_state["show_saved"] = not showing
             st.rerun()
@@ -304,8 +318,8 @@ else:
         **Search**. Everything else — sort, date posted, workplace, experience level,
         card or table view — lives behind **Filters**.
 
-        Tap the **♡** on any card to save it, and the **♥** in the bar to show only
-        saved jobs.
+        Use the bookmark on any card to save it, and the bookmark in the bar to
+        show only saved jobs.
 
         LinkedIn publishes no recruiter emails or phone numbers on job postings, so
         neither does this app. **Contact & apply** links the real apply page, the

@@ -45,7 +45,8 @@ def test_topbar_carries_title_company_country_search_and_saved():
     assert app.text_input(key="company").placeholder == "Company (Optional)"
     assert app.selectbox(key="country").value is None  # placeholder state
     assert app.button(key="search").label == "Search"
-    assert app.button(key="saved_toggle").label == "♥"
+    # Icon-only button: the bookmark glyph lives in `icon`, not the label.
+    assert app.button(key="saved_toggle").label == ""
 
 
 def test_filters_panel_holds_every_filter():
@@ -78,8 +79,8 @@ def test_country_selection_seeds_the_geo_id():
     app.text_input(key="geo_id").set_value("99999999").run()
     assert app.text_input(key="geo_id").value == "99999999"
 
-    app.selectbox(key="country").set_value("Pakistan").run()
-    assert app.text_input(key="geo_id").value == "101022442"
+    app.selectbox(key="country").set_value("Germany").run()
+    assert app.text_input(key="geo_id").value == "101282230"
 
 
 def test_country_without_a_known_geo_id_falls_back_to_free_text():
@@ -101,11 +102,11 @@ def test_company_filter_narrows_results_without_researching():
     app = _search(_app(), view="Table")
     total = len(app.dataframe[0].value)
 
-    app.text_input(key="company").set_value("careem").run()
+    app.text_input(key="company").set_value("globex").run()
     narrowed = app.dataframe[0].value
 
     assert 0 < len(narrowed) < total
-    assert narrowed["Company"].str.lower().str.contains("careem").all()
+    assert narrowed["Company"].str.lower().str.contains("globex").all()
 
 
 def test_company_filter_with_no_match_explains_itself():
@@ -113,6 +114,19 @@ def test_company_filter_with_no_match_explains_itself():
     app.text_input(key="company").set_value("no-such-company").run()
     assert not app.dataframe
     assert "no-such-company" in app.warning[0].value
+
+
+def test_apply_filters_collapses_the_panel():
+    app = _app()
+    assert "filters_panel" not in app.session_state
+
+    app = app.button(key="apply_filters").click().run()
+    # Remounting the popover under a new key is what makes it come back closed.
+    assert app.session_state["filters_panel"] == 1
+    assert not app.exception
+
+    app = app.button(key="apply_filters").click().run()
+    assert app.session_state["filters_panel"] == 2
 
 
 def test_saving_a_job_and_filtering_to_saved_only():
