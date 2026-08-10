@@ -1,6 +1,9 @@
 """Mulazmat — search LinkedIn job postings from a Streamlit UI.
 
 Run with:  streamlit run app.py
+
+Layout is a horizontal search bar (title, company, country, search, filters,
+saved) over a two-up grid of result cards. There is no sidebar.
 """
 
 from __future__ import annotations
@@ -13,13 +16,21 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from mulazmat import countries, filters  # noqa: E402
-from mulazmat.cards import render_cards  # noqa: E402
+from mulazmat import countries, filters, theme  # noqa: E402
+from mulazmat.cards import render_grid  # noqa: E402
 from mulazmat.linkedin import LinkedInClient, LinkedInError  # noqa: E402
 from mulazmat.models import Job, SearchQuery  # noqa: E402
 from mulazmat.sample_data import sample_jobs  # noqa: E402
 
-st.set_page_config(page_title="Mulazmat — LinkedIn Job Search", page_icon="💼", layout="wide")
+st.set_page_config(
+    page_title="Mulazmat — LinkedIn Job Search",
+    page_icon="💼",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+st.markdown(theme.STYLES, unsafe_allow_html=True)
+
+WORKPLACE_CHOICES = ["Select all", *filters.WORKPLACE_TYPES]
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -45,6 +56,7 @@ def _cached_search(
         jobs = client.search(query, limit=limit, on_progress=on_progress)
 
         if detail_count and jobs:
+
             def on_detail(done: int, target: int) -> None:
                 progress.progress(
                     min(done / target, 1.0), text=f"Fetching details {done}/{target}…"
@@ -57,114 +69,170 @@ def _cached_search(
     return [job.to_dict() for job in jobs]
 
 
-def _sidebar() -> tuple[SearchQuery, int, bool, bool, str, int]:
-    with st.sidebar:
-        st.header("Search")
+def _filters_panel() -> None:
+    """The dropdown behind the Filters button.
 
-        title = st.text_input(
-            "Job title *",
-            key="title",
-            placeholder="e.g. Data Analyst",
-            help="Required. Matched against the posting's title and description.",
-        )
-        company = st.text_input(
-            "Company (optional)",
-            key="company",
-            placeholder="e.g. Systems Limited",
-            help="Filters the results after they come back from LinkedIn.",
-        )
+    Widgets write straight to session state via their keys, so nothing needs to
+    be returned; "Apply filters" only exists to close the panel and rerun.
 
-        country = st.selectbox(
-            "Country",
-            key="country",
-            options=countries.country_options(),
-            index=0,
-            help="Alphabetical — start typing to jump to a country.",
-        )
-        city = st.text_input("City / region (optional)", key="city", placeholder="e.g. Lahore")
+    LinkedIn's guest endpoint returns no facet counts, so the options here are
+    unnumbered — a count would have to be invented.
+    """
+    st.markdown('<p class="mz-fgroup">Sort by</p>', unsafe_allow_html=True)
+    st.radio("Sort by", list(filters.SORT_OPTIONS), key="sort", label_visibility="collapsed")
 
-        st.divider()
-        st.subheader("Filters")
-
-        date_label = st.selectbox("Date posted", list(filters.DATE_POSTED), key="date_posted")
-        sort_label = st.selectbox("Sort by", list(filters.SORT_OPTIONS), key="sort")
-        workplace = st.multiselect("Workplace", list(filters.WORKPLACE_TYPES), key="workplace")
-        job_types = st.multiselect("Job type", list(filters.JOB_TYPES), key="job_types")
-        experience = st.multiselect("Experience level", list(filters.EXPERIENCE_LEVELS), key="experience")
-
-        limit = st.slider(
-            "Max results",
-            key="limit",
-            min_value=25,
-            max_value=500,
-            value=100,
-            step=25,
-            help="LinkedIn serves ~10 per request and stops around 1000. "
-            "Larger numbers take longer and risk rate limiting.",
-        )
-
-        st.divider()
-        st.subheader("Display")
-
-        view = st.radio("View as", ["Cards", "Table"], key="view", horizontal=True)
-
-        fetch_details = st.toggle(
-            "Fetch full details",
-            key="fetch_details",
-            value=False,
-            help="Opens each posting for its description, seniority, employment type, "
-            "applicant count and apply link. One extra request per job — slower, and "
-            "much more likely to hit LinkedIn's rate limit.",
-        )
-        detail_count = 0
-        if fetch_details:
-            detail_count = st.slider(
-                "Details for first N jobs", key="detail_count", min_value=5, max_value=50, value=15, step=5
-            )
-
-        demo = st.toggle(
-            "Demo mode (no network)",
-            key="demo_mode",
-            value=False,
-            help="Show sample results so you can try the UI without querying LinkedIn.",
-        )
-
-        # A keyed widget ignores ``value=`` after its first render, so the geoId
-        # is re-seeded explicitly whenever the country changes. Manual overrides
-        # survive until then.
-        if st.session_state.get("_geo_country") != country:
-            st.session_state["_geo_country"] = country
-            st.session_state["geo_id"] = countries.geo_id_for(country)
-
-        with st.expander("Advanced"):
-            geo_id = st.text_input(
-                "LinkedIn geoId",
-                key="geo_id",
-                help="Auto-filled for supported countries; blank means the country "
-                "name is sent as free text instead. Override if results look off.",
-            ).strip()
-
-        run = st.button("Search", key="search", type="primary", use_container_width=True)
-
-    query = SearchQuery(
-        keywords=title,
-        location=countries.location_string(country, city),
-        geo_id=geo_id,
-        company=company,
-        date_posted=filters.DATE_POSTED[date_label],
-        experience_levels=filters.values_for(experience, filters.EXPERIENCE_LEVELS),
-        job_types=filters.values_for(job_types, filters.JOB_TYPES),
-        workplace_types=filters.values_for(workplace, filters.WORKPLACE_TYPES),
-        sort_by=filters.SORT_OPTIONS[sort_label],
+    st.markdown('<p class="mz-fgroup">Date posted</p>', unsafe_allow_html=True)
+    st.radio(
+        "Date posted", list(filters.DATE_POSTED), key="date_posted", label_visibility="collapsed"
     )
-    return query, limit, demo, run, view, detail_count
+
+    st.markdown('<p class="mz-fgroup">Workplace</p>', unsafe_allow_html=True)
+    st.radio("Workplace", WORKPLACE_CHOICES, key="workplace", label_visibility="collapsed")
+
+    st.markdown('<p class="mz-fgroup">Experience level</p>', unsafe_allow_html=True)
+    for label in filters.EXPERIENCE_LEVELS:
+        st.checkbox(label, key=f"exp_{label}")
+
+    st.markdown('<p class="mz-fgroup">Max results</p>', unsafe_allow_html=True)
+    st.slider(
+        "Max results",
+        key="limit",
+        min_value=25,
+        max_value=500,
+        value=100,
+        step=25,
+        label_visibility="collapsed",
+        help="LinkedIn serves ~10 per request and stops around 1000.",
+    )
+
+    st.markdown('<p class="mz-fgroup">View as</p>', unsafe_allow_html=True)
+    st.radio("View as", ["Cards", "Table"], key="view", label_visibility="collapsed")
+
+    st.checkbox(
+        "Fetch full details",
+        key="fetch_details",
+        help="Opens each posting for its description, applicant count and apply link. "
+        "One extra request per job — slower, and more likely to hit the rate limit.",
+    )
+    if st.session_state.get("fetch_details"):
+        st.slider("Details for first N jobs", key="detail_count", min_value=5, max_value=50, step=5)
+    st.checkbox("Demo mode (no network)", key="demo_mode", help="Sample results, no LinkedIn call.")
+
+    st.markdown('<p class="mz-fgroup">Advanced</p>', unsafe_allow_html=True)
+    st.text_input(
+        "LinkedIn geoId",
+        key="geo_id",
+        placeholder="LinkedIn geoId",
+        label_visibility="collapsed",
+        help="Auto-filled for supported countries; blank sends the country name as "
+        "free text instead. Override if results look off.",
+    )
+
+    st.button("Apply filters", key="apply_filters", width="stretch")
 
 
-def _render_results(jobs: list[Job], query: SearchQuery, view: str = "Cards") -> None:
+def _topbar() -> bool:
+    """Draw the search bar. Returns True when Search was pressed."""
+    with st.container(key="topbar"):
+        logo, title, company, country, search, filt, saved = st.columns(
+            [0.6, 3, 3, 2.6, 2, 1.8, 0.7], vertical_alignment="center", gap="small"
+        )
+
+        logo.markdown(theme.LOGO, unsafe_allow_html=True)
+        title.text_input(
+            "Job title", key="title", placeholder="Job Title", label_visibility="collapsed"
+        )
+        company.text_input(
+            "Company", key="company", placeholder="Company (Optional)", label_visibility="collapsed"
+        )
+
+        picked = country.selectbox(
+            "Country",
+            options=sorted(countries.COUNTRIES),
+            key="country",
+            index=None,
+            placeholder="Country",
+            label_visibility="collapsed",
+        )
+        # A keyed widget ignores ``value=`` after its first render, so the geoId
+        # is re-seeded when the country changes. Overrides survive until then.
+        if st.session_state.get("_geo_country") != picked:
+            st.session_state["_geo_country"] = picked
+            st.session_state["geo_id"] = countries.geo_id_for(picked or "")
+
+        run = search.button("Search", key="search", width="stretch")
+
+        with filt.popover("Filters", width="stretch"):
+            _filters_panel()
+
+        showing = st.session_state.get("show_saved", False)
+        if saved.button(
+            "♥",
+            key="saved_toggle",
+            help="Show all jobs" if showing else "Show saved jobs",
+            type="primary" if showing else "secondary",
+        ):
+            st.session_state["show_saved"] = not showing
+            st.rerun()
+
+    return run
+
+
+def _query_from_state() -> SearchQuery:
+    state = st.session_state
+    country = state.get("country") or ""
+    workplace = state.get("workplace", "Select all")
+    experience = [label for label in filters.EXPERIENCE_LEVELS if state.get(f"exp_{label}")]
+
+    return SearchQuery(
+        keywords=state.get("title", ""),
+        location=countries.location_string(country or countries.ANYWHERE),
+        geo_id=(state.get("geo_id") or "").strip(),
+        company=state.get("company", ""),
+        date_posted=filters.DATE_POSTED[state.get("date_posted", "Any time")],
+        experience_levels=filters.values_for(experience, filters.EXPERIENCE_LEVELS),
+        job_types=(),
+        workplace_types=(
+            ()
+            if workplace == "Select all"
+            else filters.values_for([workplace], filters.WORKPLACE_TYPES)
+        ),
+        sort_by=filters.SORT_OPTIONS[state.get("sort", "Most relevant")],
+    )
+
+
+def _render_table(frame: pd.DataFrame) -> None:
+    display = frame[["title", "company", "location", "posted_label", "salary", "url"]].rename(
+        columns={
+            "title": "Title",
+            "company": "Company",
+            "location": "Location",
+            "posted_label": "Posted",
+            "salary": "Salary",
+            "url": "Link",
+        }
+    )
+    st.dataframe(
+        display,
+        width="stretch",
+        hide_index=True,
+        column_config={"Link": st.column_config.LinkColumn("Link", display_text="Open")},
+    )
+
+
+def _render_results(jobs: list[Job], query: SearchQuery) -> None:
+    state = st.session_state
+    saved: set[str] = state.setdefault("saved", set())
+    showing_saved = state.get("show_saved", False)
+
     filtered = [job for job in jobs if job.matches_company(query.company)]
+    if showing_saved:
+        filtered = [job for job in filtered if job.job_id in saved]
 
     if not filtered:
-        if jobs and query.company:
+        if showing_saved:
+            st.info("No saved jobs yet — tap the ♡ on a card to save it.")
+        elif jobs and query.company:
             st.warning(
                 f"{len(jobs)} jobs found, but none from a company matching "
                 f"“{query.company}”. Try a shorter company name."
@@ -173,57 +241,47 @@ def _render_results(jobs: list[Job], query: SearchQuery, view: str = "Cards") ->
             st.warning("No jobs matched. Try a broader title, or widen the date filter.")
         return
 
-    left, mid, right = st.columns(3)
-    left.metric("Jobs shown", len(filtered))
-    mid.metric("Companies", len({job.company for job in filtered if job.company}))
-    if query.company:
-        right.metric("Filtered out", len(jobs) - len(filtered))
+    heading = "Saved Jobs" if showing_saved else "Job Results"
+    st.markdown(
+        f'<p class="mz-count">{len(filtered)} {heading}</p>',
+        unsafe_allow_html=True,
+    )
 
-    frame = pd.DataFrame([job.to_dict() for job in filtered])
-
-    if view == "Cards":
-        st.markdown(render_cards(filtered), unsafe_allow_html=True)
+    if state.get("view", "Cards") == "Cards":
+        clicked = render_grid(filtered, saved)
+        if clicked:
+            saved.symmetric_difference_update({clicked})
+            st.rerun()
     else:
-        display = frame[["title", "company", "location", "posted_label", "salary", "url"]].rename(
-            columns={
-                "title": "Title",
-                "company": "Company",
-                "location": "Location",
-                "posted_label": "Posted",
-                "salary": "Salary",
-                "url": "Link",
-            }
-        )
-        st.dataframe(
-            display,
-            use_container_width=True,
-            hide_index=True,
-            column_config={"Link": st.column_config.LinkColumn("Link", display_text="Open")},
-        )
+        _render_table(pd.DataFrame([job.to_dict() for job in filtered]))
 
     st.divider()
-
     st.download_button(
         "Download CSV",
-        data=frame.to_csv(index=False).encode("utf-8"),
+        data=pd.DataFrame([job.to_dict() for job in filtered]).to_csv(index=False).encode("utf-8"),
         file_name=f"mulazmat-{query.keywords.strip().replace(' ', '-').lower() or 'jobs'}.csv",
         mime="text/csv",
     )
 
 
-st.title("💼 Mulazmat")
-st.caption("Search LinkedIn job postings by title, company and country.")
-
-query, limit, demo, run, view, detail_count = _sidebar()
+run = _topbar()
+query = _query_from_state()
 
 if run:
     if not query.keywords.strip():
         st.error("Enter a job title to search.")
     else:
         st.session_state.pop("results", None)
+        st.session_state["show_saved"] = False
         try:
             raw = _cached_search(
-                query.cache_key(), query.__dict__.copy(), limit, demo, detail_count
+                query.cache_key(),
+                query.__dict__.copy(),
+                st.session_state.get("limit", 100),
+                st.session_state.get("demo_mode", False),
+                st.session_state.get("detail_count", 0)
+                if st.session_state.get("fetch_details")
+                else 0,
             )
         except LinkedInError as exc:
             st.error(str(exc))
@@ -231,35 +289,28 @@ if run:
             st.error(f"Search failed: {exc}")
         else:
             st.session_state["results"] = raw
-            st.session_state["query"] = query
-            st.session_state["demo"] = demo
+            st.session_state["demo"] = st.session_state.get("demo_mode", False)
 
 if "results" in st.session_state:
-    stored: SearchQuery = st.session_state["query"]
-    # Re-apply the company filter live, so editing it does not re-hit LinkedIn.
-    stored.company = query.company
     if st.session_state.get("demo"):
         st.info("Demo mode — these are sample results, not live LinkedIn data.")
-    _render_results([Job(**row) for row in st.session_state["results"]], stored, view)
+    _render_results([Job(**row) for row in st.session_state["results"]], query)
 else:
-    st.info("Enter a job title in the sidebar and press **Search** to begin.")
     st.markdown(
         """
-        **How it works**
+        #### Search LinkedIn job postings
 
-        - **Job title** is required and is what LinkedIn actually searches on.
-        - **Company** is optional and is applied to the results after they arrive,
-          so you can change it without running a new search.
-        - **Country** is the full alphabetical list — click and start typing to
-          filter it.
-        - **Cards** show each role with its apply link and company page. Turn on
-          **Fetch full details** for the description, seniority and applicant
-          count too — at the cost of one extra request per job.
+        Enter a **job title**, optionally a **company** and a **country**, then press
+        **Search**. Everything else — sort, date posted, workplace, experience level,
+        card or table view — lives behind **Filters**.
 
-        LinkedIn job postings contain no recruiter emails or phone numbers, so
-        neither does this app. "Contact & apply" links to the real apply page,
-        the company's LinkedIn page, and — when a posting names one — the public
-        profile of the person who posted it.
+        Tap the **♡** on any card to save it, and the **♥** in the bar to show only
+        saved jobs.
+
+        LinkedIn publishes no recruiter emails or phone numbers on job postings, so
+        neither does this app. **Contact & apply** links the real apply page, the
+        company's LinkedIn page, and — when a posting names one — the public profile
+        of whoever posted it.
 
         LinkedIn has no public jobs API, so this reads the same endpoint its
         logged-out jobs page uses. It is rate limited: keep searches modest, and

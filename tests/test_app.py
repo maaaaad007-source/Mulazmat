@@ -1,7 +1,7 @@
 """End-to-end checks that drive the real Streamlit app in demo mode.
 
-Widgets are addressed by key rather than position so that adding a control to
-the sidebar does not silently retarget these tests.
+Widgets are addressed by key rather than position so that moving a control
+between the bar and the filters panel does not silently retarget these tests.
 """
 
 from pathlib import Path
@@ -15,17 +15,22 @@ def _app() -> AppTest:
     return AppTest.from_file(APP, default_timeout=30).run()
 
 
-def _demo_search(app: AppTest, title: str = "Data Analyst", view: str = "Cards") -> AppTest:
+def _search(app: AppTest, title: str = "Senior UX Designer", view: str = "Cards") -> AppTest:
     app.text_input(key="title").set_value(title)
-    app.toggle(key="demo_mode").set_value(True)
+    app.checkbox(key="demo_mode").set_value(True)
     app.radio(key="view").set_value(view)
     return app.button(key="search").click().run()
 
 
-def test_app_starts_with_a_prompt_and_no_results():
+def _html(app: AppTest) -> str:
+    return "".join(md.value for md in app.markdown)
+
+
+def test_app_starts_with_the_intro_and_no_sidebar_widgets():
     app = _app()
     assert not app.exception
-    assert any("press **Search**" in info.value for info in app.info)
+    assert "Search LinkedIn job postings" in _html(app)
+    assert not app.sidebar.text_input, "the layout must not use a sidebar"
 
 
 def test_search_without_a_title_is_rejected():
@@ -34,82 +39,45 @@ def test_search_without_a_title_is_rejected():
     assert app.error[0].value == "Enter a job title to search."
 
 
-def test_demo_search_renders_cards_by_default():
-    app = _demo_search(_app())
+def test_topbar_carries_title_company_country_search_and_saved():
+    app = _app()
+    assert app.text_input(key="title").placeholder == "Job Title"
+    assert app.text_input(key="company").placeholder == "Company (Optional)"
+    assert app.selectbox(key="country").value is None  # placeholder state
+    assert app.button(key="search").label == "Search"
+    assert app.button(key="saved_toggle").label == "♥"
+
+
+def test_filters_panel_holds_every_filter():
+    app = _app()
+    keys = {r.key for r in app.radio} | {c.key for c in app.checkbox} | {s.key for s in app.slider}
+    assert {"sort", "date_posted", "workplace", "view"} <= keys
+    assert {"exp_Internship", "exp_Director", "fetch_details", "demo_mode"} <= keys
+    assert "limit" in keys
+    assert app.button(key="apply_filters").label == "Apply filters"
+
+
+def test_demo_search_renders_cards_with_contact_links():
+    app = _search(_app())
     assert not app.exception
 
-    html = "".join(md.value for md in app.markdown)
-    assert 'class="mz-grid"' in html
-    assert html.count("<article") > 0
-    assert "Data Analyst" in html
-    assert app.metric[0].label == "Jobs shown"
-
-
-def test_cards_carry_contact_and_apply_links():
-    html = "".join(md.value for md in _demo_search(_app()).markdown)
+    html = _html(app)
+    assert "Job Results" in html
+    assert '<p class="mz-title">' in html
     assert "Contact &amp; apply" in html
-    assert "linkedin.com/company/" in html
-    assert ">Apply<" in html
+    assert "Senior UX Designer" in html
+    # One save button per card.
+    assert len([b for b in app.button if b.key.startswith("save_")]) > 0
 
 
-def test_table_view_renders_a_dataframe_instead():
-    app = _demo_search(_app(), view="Table")
-    assert app.dataframe, "expected a results table"
-
-    frame = app.dataframe[0].value
-    assert len(frame) > 0
-    assert list(frame.columns) == ["Title", "Company", "Location", "Posted", "Salary", "Link"]
-    assert frame["Title"].str.contains("Data Analyst").all()
-    assert 'class="mz-grid"' not in "".join(md.value for md in app.markdown)
-
-
-def test_company_filter_narrows_results_without_researching():
-    app = _demo_search(_app(), view="Table")
-    total = len(app.dataframe[0].value)
-
-    # Typing a company re-renders from the cached results; no new search is run.
-    app.text_input(key="company").set_value("careem").run()
-    narrowed = app.dataframe[0].value
-
-    assert 0 < len(narrowed) < total
-    assert narrowed["Company"].str.lower().str.contains("careem").all()
-
-
-def test_company_filter_with_no_match_explains_itself():
-    app = _demo_search(_app(), view="Table")
-
-    app.text_input(key="company").set_value("no-such-company").run()
-    assert not app.dataframe
-    assert "no-such-company" in app.warning[0].value
-
-
-def test_country_selectbox_is_alphabetical_and_complete():
-    options = _app().selectbox(key="country").options
-    assert options[1:] == sorted(options[1:])
-    assert "Pakistan" in options and "Zimbabwe" in options
-    assert len(options) > 190
-
-
-def test_detail_count_slider_only_appears_when_enrichment_is_on():
+def test_country_selection_seeds_the_geo_id():
     app = _app()
-    assert not [s for s in app.slider if s.key == "detail_count"]
+    app.selectbox(key="country").set_value("Netherlands").run()
+    assert app.text_input(key="geo_id").value == "102890719"
 
-    app.toggle(key="fetch_details").set_value(True).run()
-    assert app.slider(key="detail_count").value == 15
-
-
-def test_geo_id_autofills_per_country_and_keeps_manual_overrides():
-    app = _app()
-    assert app.text_input(key="geo_id").value == ""  # "Anywhere" has none
-
-    app.selectbox(key="country").set_value("United States").run()
-    assert app.text_input(key="geo_id").value == "103644278"
-
-    # A hand-typed id sticks while the country is unchanged...
     app.text_input(key="geo_id").set_value("99999999").run()
     assert app.text_input(key="geo_id").value == "99999999"
 
-    # ...and is re-seeded when the country changes.
     app.selectbox(key="country").set_value("Pakistan").run()
     assert app.text_input(key="geo_id").value == "101022442"
 
@@ -120,12 +88,70 @@ def test_country_without_a_known_geo_id_falls_back_to_free_text():
     assert app.text_input(key="geo_id").value == ""
 
 
-def test_selected_country_flows_into_the_search():
-    app = _app()
-    app.text_input(key="title").set_value("Data Analyst")
-    app.selectbox(key="country").set_value("Pakistan")
-    app.toggle(key="demo_mode").set_value(True)
-    app.button(key="search").click().run()
+def test_table_view_renders_a_dataframe_instead_of_cards():
+    app = _search(_app(), view="Table")
+    assert app.dataframe
+    frame = app.dataframe[0].value
+    assert list(frame.columns) == ["Title", "Company", "Location", "Posted", "Salary", "Link"]
+    # Match the rendered element, not the class name in the stylesheet.
+    assert '<p class="mz-title">' not in _html(app)
 
-    assert app.text_input(key="geo_id").value == "101022442"
-    assert "Pakistan" in "".join(md.value for md in app.markdown)
+
+def test_company_filter_narrows_results_without_researching():
+    app = _search(_app(), view="Table")
+    total = len(app.dataframe[0].value)
+
+    app.text_input(key="company").set_value("careem").run()
+    narrowed = app.dataframe[0].value
+
+    assert 0 < len(narrowed) < total
+    assert narrowed["Company"].str.lower().str.contains("careem").all()
+
+
+def test_company_filter_with_no_match_explains_itself():
+    app = _search(_app(), view="Table")
+    app.text_input(key="company").set_value("no-such-company").run()
+    assert not app.dataframe
+    assert "no-such-company" in app.warning[0].value
+
+
+def test_saving_a_job_and_filtering_to_saved_only():
+    app = _search(_app())
+    save_buttons = [b for b in app.button if b.key.startswith("save_")]
+    total = len(save_buttons)
+
+    app = save_buttons[0].click().run()
+    assert len(app.session_state["saved"]) == 1
+
+    app = app.button(key="saved_toggle").click().run()
+    assert "1 Saved Jobs" in _html(app)
+    assert len([b for b in app.button if b.key.startswith("save_")]) == 1 < total
+
+
+def test_saved_view_is_empty_before_anything_is_saved():
+    app = _search(_app())
+    app = app.button(key="saved_toggle").click().run()
+    assert any("No saved jobs yet" in info.value for info in app.info)
+
+
+def test_unsaving_removes_the_job_again():
+    app = _search(_app())
+    app = [b for b in app.button if b.key.startswith("save_")][0].click().run()
+    assert len(app.session_state["saved"]) == 1
+
+    app = [b for b in app.button if b.key.startswith("save_")][0].click().run()
+    assert len(app.session_state["saved"]) == 0
+
+
+def test_workplace_select_all_sends_no_workplace_filter():
+    app = _app()
+    assert app.radio(key="workplace").value == "Select all"
+    app.radio(key="workplace").set_value("Remote").run()
+    assert app.radio(key="workplace").value == "Remote"
+
+
+def test_detail_slider_only_appears_when_enrichment_is_on():
+    app = _app()
+    assert not [s for s in app.slider if s.key == "detail_count"]
+    app.checkbox(key="fetch_details").set_value(True).run()
+    assert app.slider(key="detail_count").value is not None

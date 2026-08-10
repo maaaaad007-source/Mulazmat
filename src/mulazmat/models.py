@@ -25,6 +25,7 @@ class Job:
     # ``LinkedInClient.fetch_details``. All optional; LinkedIn omits most of
     # them on most postings.
     description: str = ""
+    workplace: str = ""
     seniority: str = ""
     employment_type: str = ""
     job_function: str = ""
@@ -43,6 +44,23 @@ class Job:
     def best_apply_url(self) -> str:
         """Where "Apply" should point: the external URL if we have one."""
         return self.apply_url or self.url
+
+    @property
+    def workplace_label(self) -> str:
+        """On-site / Remote / Hybrid, if the posting actually says so.
+
+        LinkedIn does not return a workplace field on search cards, so this
+        reads the location text and stays empty when it cannot tell — a guess
+        here would be worse than a blank.
+        """
+        if self.workplace:
+            return self.workplace
+        location = self.location.lower()
+        if "hybrid" in location:
+            return "Hybrid"
+        if "remote" in location:
+            return "Remote"
+        return ""
 
     @property
     def badges(self) -> tuple[str, ...]:

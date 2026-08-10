@@ -13,8 +13,25 @@ streamlit run app.py
 ```
 
 The app opens at <http://localhost:8501>. Enter a job title, pick a country,
-press **Search**. Tick **Demo mode** in the sidebar to click through the whole
+press **Search**. Tick **Demo mode** under **Filters** to click through the whole
 UI with sample data, without touching LinkedIn.
+
+## Layout
+
+A single horizontal bar across the top — logo, job title, company, country,
+**Search**, **Filters**, and a **♥** that switches to your saved jobs. There is
+no sidebar. Everything secondary lives in the **Filters** dropdown: sort, date
+posted, workplace, experience level, max results, card/table view, detail
+fetching, demo mode and the geoId override.
+
+Results are a two-up grid of cards: title, company, location, a
+workplace / job-type / age strip, and the **Contact & apply** footer. Each card
+has a **♥** to save it; saved jobs live in the session, so they clear when the
+browser tab is closed.
+
+Streamlit's own header is hidden so it cannot sit on top of the **Filters**
+button — delete the `[data-testid="stHeader"]` rule in `src/mulazmat/theme.py`
+to bring the hamburger menu back.
 
 ## What you can search on
 
@@ -22,20 +39,19 @@ UI with sample data, without touching LinkedIn.
 | --- | --- |
 | **Job title** | Required. This is what LinkedIn actually searches on. |
 | **Company** | Optional. Applied to results *after* they arrive, so editing it re-filters instantly without a new search. |
-| **Country** | All 195 countries, alphabetical; the selectbox filters as you type. "Anywhere" skips the location filter. |
-| City / region | Optional, narrows within the country. |
+| **Country** | All 195 countries, alphabetical; the selectbox filters as you type. Leave it blank to search everywhere. |
 | Date posted | Any time / 24 hours / week / month. |
-| Workplace | On-site, Remote, Hybrid. |
-| Job type | Full-time, Part-time, Contract, Temporary, Internship, Volunteer, Other. |
-| Experience | Internship through Executive. |
+| Workplace | Select all, On-site, Remote or Hybrid. |
+| Experience | Internship through Executive, multi-select. |
 | Sort | Most relevant or most recent. |
 | Max results | 25–500. |
-| View | **Cards** (default) or **Table**. |
+| View | **Cards** (default) or **Table**. Both live under **Filters**. |
 | Fetch full details | Off by default. Opens each posting for its description, seniority, employment type, applicant count and apply link — one extra request per job, capped at the first N. |
 
-Results render as styled cards — title, company, location, posted date, salary,
-badges, a description snippet and a **Contact & apply** footer — or as a sortable
-table. Either way there is a **Download CSV** button.
+Results render as cards — title, company, location, the workplace / job-type /
+age strip and a **Contact & apply** footer — or as a sortable table. Either way
+there is a **Download CSV** button, and the CSV carries every field including the
+description and salary that the cards leave out.
 
 ## About "contact details"
 
@@ -87,16 +103,16 @@ comes with real limits you should know about before relying on it:
 LinkedIn resolves locations internally by a numeric `geoId`. Those ids are not
 published, so `src/mulazmat/countries.py` carries a **partial, best-effort map**
 for 20 common countries; everything else sends the country name as free text,
-which LinkedIn resolves itself. The sidebar's **Advanced** expander always shows
-the `geoId` in use and lets you override it if results for your country look
-wrong.
+which LinkedIn resolves itself. **Filters → Advanced** always shows the `geoId`
+in use and lets you override it if results for your country look wrong.
 
 ## Project layout
 
 ```
 app.py                      Streamlit UI
 src/mulazmat/
-  cards.py                  Card CSS + HTML rendering (escaped)
+  cards.py                  Card markup (escaped) + the results grid
+  theme.py                  The stylesheet: top bar, filters panel, cards
   countries.py              Country list, geoId hints, location strings
   filters.py                Date/experience/job-type/workplace vocabularies
   linkedin.py               Guest-endpoint client, pagination, HTML parsing
@@ -112,10 +128,18 @@ pip install pytest
 pytest
 ```
 
-42 tests: HTML parsing against pinned real-world search and job-detail
+46 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), and end-to-end runs that drive the
-actual Streamlit app through `AppTest` in demo mode.
+actual Streamlit app through `AppTest` — the top bar, the filters panel, saving
+and unsaving jobs, and the saved-only view.
 
 Note that the test suite deliberately makes **no network calls** — the live
 endpoint is exercised by running the app, not by CI.
+
+### A note on the filter counts
+
+The design this UI follows showed counts beside each date and experience option
+(`Past 24 hours (3,458)`). LinkedIn's guest endpoint returns no facet counts, and
+there is no way to derive them without running a separate search per option, so
+the options are unnumbered rather than numbered with invented figures.

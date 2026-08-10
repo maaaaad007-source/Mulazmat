@@ -12,17 +12,19 @@ from datetime import date, timedelta
 
 from .models import Job, SearchQuery
 
+# Each company carries its own real-looking location, so demo results never
+# read "London, Pakistan" just because Pakistan was the country searched.
 _COMPANIES = (
-    ("Systems Limited", "Lahore"),
-    ("Netsol Technologies", "Lahore"),
-    ("Careem", "Karachi"),
+    ("Systems Limited", "Lahore, Pakistan"),
+    ("Netsol Technologies", "Lahore, Pakistan"),
+    ("Careem", "Karachi, Pakistan"),
     ("Acme Analytics", "Remote"),
-    ("Globex Health", "London"),
-    ("Initech", "Berlin"),
-    ("Umbrella Retail", "Toronto"),
-    ("Hooli", "San Francisco, CA"),
-    ("Stark Industries", "Dubai"),
-    ("Wayne Digital", "Amsterdam"),
+    ("Globex Health", "London, United Kingdom"),
+    ("Initech", "Berlin, Germany"),
+    ("Umbrella Retail", "Toronto, Canada"),
+    ("Hooli", "San Francisco, CA, United States"),
+    ("Stark Industries", "Dubai, United Arab Emirates"),
+    ("Booking.com", "Amsterdam, Netherlands"),
 )
 
 _SENIORITY = ("Junior", "", "Senior", "Lead", "Principal")
@@ -32,12 +34,11 @@ _ARRANGEMENT = ("On-site", "Hybrid", "Remote")
 def sample_jobs(query: SearchQuery, limit: int = 40) -> list[Job]:
     """Deterministic fake results shaped by the user's query."""
     title = query.keywords.strip() or "Software Engineer"
-    country = query.location.strip() or "Pakistan"
     today = date.today()
 
     jobs: list[Job] = []
     for index in range(min(limit, 40)):
-        company, city = _COMPANIES[index % len(_COMPANIES)]
+        company, location = _COMPANIES[index % len(_COMPANIES)]
         seniority = _SENIORITY[index % len(_SENIORITY)]
         arrangement = _ARRANGEMENT[index % len(_ARRANGEMENT)]
         posted = today - timedelta(days=index % 21)
@@ -49,9 +50,9 @@ def sample_jobs(query: SearchQuery, limit: int = 40) -> list[Job]:
         jobs.append(
             Job(
                 job_id=job_id,
-                title=f"{full_title} ({arrangement})",
+                title=full_title,
                 company=company,
-                location=city if city == "Remote" else f"{city}, {country}",
+                location=location,
                 url=f"https://www.linkedin.com/jobs/view/{job_id}",
                 posted_at=posted.isoformat(),
                 posted_label=("today" if index % 21 == 0 else f"{index % 21} days ago"),
@@ -63,6 +64,7 @@ def sample_jobs(query: SearchQuery, limit: int = 40) -> list[Job]:
                     "You will own reporting, build dashboards, and partner with "
                     "product and finance teams to turn messy data into decisions."
                 ),
+                workplace=arrangement,
                 seniority=("Entry level" if index % 2 else "Mid-Senior level"),
                 employment_type=("Contract" if index % 5 == 0 else "Full-time"),
                 job_function="Analyst",

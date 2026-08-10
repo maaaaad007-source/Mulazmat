@@ -1,20 +1,20 @@
-from mulazmat.cards import render_card, render_cards
+from mulazmat.cards import card_html, contact_html, meta_items, meta_row_html, title_html
 from mulazmat.models import Job
 
 FULL = Job(
     job_id="1",
-    title="Data Analyst",
-    company="Acme",
-    location="Lahore, Pakistan",
+    title="Senior UX Designer",
+    company="Booking.com",
+    location="Amsterdam, Netherlands",
     url="https://www.linkedin.com/jobs/view/1",
-    posted_label="2 days ago",
-    salary="PKR 300,000/mo",
-    company_url="https://www.linkedin.com/company/acme",
-    description="Own reporting and dashboards. " * 20,
-    seniority="Entry level",
+    posted_label="1 week ago",
+    salary="€90,000/yr",
+    company_url="https://www.linkedin.com/company/booking",
+    description="Design end-to-end flows. " * 20,
+    workplace="Remote",
     employment_type="Full-time",
     applicants="42 applicants",
-    apply_url="https://careers.acme.example/jobs/1",
+    apply_url="https://careers.booking.example/jobs/1",
     poster_name="Ayesha Khan",
     poster_title="Talent Lead",
     poster_profile="https://www.linkedin.com/in/ayesha",
@@ -23,80 +23,88 @@ FULL = Job(
 
 BARE = Job(
     job_id="2",
-    title="Data Analyst",
+    title="Senior UX Designer",
     company="Globex",
-    location="Remote",
+    location="Amsterdam, Netherlands",
     url="https://www.linkedin.com/jobs/view/2",
 )
 
 
-def test_card_shows_the_core_fields():
-    html = render_card(FULL)
-    assert "Data Analyst" in html
-    assert "Acme" in html
-    assert "Lahore, Pakistan" in html
-    assert "2 days ago" in html
-    assert "PKR 300,000/mo" in html
-    assert "42 applicants" in html
+def test_title_block_has_title_company_and_location():
+    html = title_html(FULL)
+    assert "Senior UX Designer" in html
+    assert "Booking.com" in html
+    assert "Amsterdam, Netherlands" in html
+    assert 'href="https://www.linkedin.com/jobs/view/1"' in html
+    assert "mz-card-link" not in html, "the title must not look like a button"
 
 
-def test_card_contact_block_links_apply_company_and_poster():
-    html = render_card(FULL)
+def test_meta_strip_is_workplace_type_and_age():
+    assert meta_items(FULL) == ["Remote", "Full-time", "1 week ago"]
+    assert "mz-meta" in meta_row_html(FULL)
+
+
+def test_meta_strip_omits_facts_we_do_not_have():
+    # No workplace, no employment type, no date — nothing to show.
+    assert meta_items(BARE) == []
+    assert meta_row_html(BARE) == ""
+
+
+def test_workplace_is_inferred_from_the_location_only_when_stated():
+    assert Job(job_id="3", title="T", company="C", location="Remote", url="").workplace_label == (
+        "Remote"
+    )
+    assert Job(
+        job_id="4", title="T", company="C", location="Hybrid - Berlin", url=""
+    ).workplace_label == "Hybrid"
+    # Never guessed: a plain city stays blank rather than claiming "On-site".
+    assert Job(job_id="5", title="T", company="C", location="Berlin", url="").workplace_label == ""
+
+
+def test_contact_block_links_apply_company_and_poster():
+    html = contact_html(FULL)
     assert "Contact &amp; apply" in html
-    # Apply points at the external careers page, not the LinkedIn mirror.
-    assert 'href="https://careers.acme.example/jobs/1"' in html
-    assert 'href="https://www.linkedin.com/company/acme"' in html
+    assert 'href="https://careers.booking.example/jobs/1"' in html
+    assert 'href="https://www.linkedin.com/company/booking"' in html
     assert 'href="https://www.linkedin.com/in/ayesha"' in html
     assert "Posted by Ayesha Khan · Talent Lead" in html
-    # The LinkedIn posting stays reachable when apply goes elsewhere.
     assert "On LinkedIn" in html
 
 
-def test_card_falls_back_to_the_linkedin_url_when_there_is_no_apply_url():
-    html = render_card(BARE)
+def test_contact_block_falls_back_to_the_linkedin_url():
+    html = contact_html(BARE)
     assert 'href="https://www.linkedin.com/jobs/view/2"' in html
     assert "On LinkedIn" not in html  # would duplicate the Apply link
 
 
-def test_card_says_so_when_there_is_nothing_to_link():
-    html = render_card(Job(job_id="3", title="Analyst", company="X", location="Y", url=""))
-    assert "No public contact links on this posting." in html
-
-
-def test_title_is_a_plain_heading_link_not_a_pill_button():
-    html = render_card(FULL)
-    heading = html.split("</h3>")[0]
-    assert "mz-link" not in heading, "the title must not pick up button styling"
-    assert 'href="https://www.linkedin.com/jobs/view/1"' in heading
-
-
-def test_badges_only_render_when_present():
-    assert "Full-time" in render_card(FULL)
-    assert "mz-badge" not in render_card(BARE)
+def test_contact_block_says_so_when_there_is_nothing_to_link():
+    bare = Job(job_id="6", title="Analyst", company="X", location="Y", url="")
+    assert "No public contact links on this posting." in contact_html(bare)
 
 
 def test_untrusted_text_is_escaped():
     nasty = Job(
-        job_id="4",
+        job_id="7",
         title="<script>alert('xss')</script>",
         company='Evil" onmouseover="alert(1)',
         location="Nowhere",
-        url="https://www.linkedin.com/jobs/view/4",
+        url="https://www.linkedin.com/jobs/view/7",
     )
-    html = render_card(nasty)
+    html = card_html(nasty)
     assert "<script>" not in html
     assert "&lt;script&gt;" in html
     assert 'onmouseover="alert(1)"' not in html
 
 
-def test_grid_includes_styles_and_one_article_per_job():
-    html = render_cards([FULL, BARE])
-    assert "<style>" in html
-    assert 'class="mz-grid"' in html
-    assert html.count("<article") == 2
+def test_card_html_assembles_every_section():
+    html = card_html(FULL)
+    assert "mz-title" in html
+    assert "mz-meta" in html
+    assert "mz-contact-label" in html
 
 
-def test_empty_result_set_still_produces_valid_markup():
-    html = render_cards([])
-    assert 'class="mz-grid"' in html
-    assert "<article" not in html
+def test_cards_omit_the_description_by_default():
+    # The design keeps cards to title/company/location/meta/contact.
+    assert "mz-desc" not in card_html(FULL)
+    assert "mz-desc" in card_html(FULL, description=True)
+    assert "mz-desc" not in card_html(BARE, description=True)
