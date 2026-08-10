@@ -24,10 +24,8 @@ import dataclasses
 import json
 import random
 import re
-import threading
 import time
 from collections.abc import Callable, Iterator
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from bs4 import BeautifulSoup
@@ -41,17 +39,6 @@ JOB_DETAIL_URL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_i
 PAGE_SIZE = 10
 MAX_START = 975
 
-#: Requests in flight at once. Every result needs its own detail page, so doing
-#: those one at a time is the difference between seconds and minutes.
-MAX_WORKERS = 4
-
-#: Minimum gap between the *start* of any two requests, across all threads.
-#: Concurrency alone is not enough to stay under LinkedIn's limit — what it
-#: measures is the request rate, so that is what has to be bounded. Widens
-#: automatically after a 429 and stays widened for the rest of the run.
-MIN_INTERVAL = 0.25
-MAX_INTERVAL = 2.0
-
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -61,38 +48,6 @@ DEFAULT_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
     "X-Requested-With": "XMLHttpRequest",
 }
-
-
-class _Pacer:
-    """Bounds how often requests may start, shared across worker threads.
-
-    Threads reserve their slot under a lock and then sleep outside it, so eight
-    workers issue at most one request every ``min_interval`` between them
-    rather than eight at once.
-    """
-
-    def __init__(self, min_interval: float) -> None:
-        self._min_interval = min_interval
-        self._next_at = 0.0
-        self._lock = threading.Lock()
-
-    def wait(self) -> None:
-        with self._lock:
-            start_at = max(time.monotonic(), self._next_at)
-            self._next_at = start_at + self._min_interval
-        delay = start_at - time.monotonic()
-        if delay > 0:
-            time.sleep(delay)
-
-    def slow_down(self, factor: float = 2.0) -> float:
-        """Widen the gap after a rebuff, and report the new interval."""
-        with self._lock:
-            self._min_interval = min(self._min_interval * factor, MAX_INTERVAL)
-            return self._min_interval
-
-    @property
-    def interval(self) -> float:
-        return self._min_interval
 
 
 class LinkedInError(RuntimeError):
@@ -410,64 +365,15 @@ class LinkedInClient:
     def __init__(
         self,
         session: requests.Session | None = None,
-        # Paced between waves, not between individual requests — cheap
-        # insurance against a 429 without costing much wall time.
-        request_delay: float = 0.25,
+        request_delay: float = 1.5,
         max_retries: int = 3,
         timeout: float = 20.0,
-        max_workers: int = MAX_WORKERS,
-        min_interval: float = MIN_INTERVAL,
     ) -> None:
+        self.session = session or requests.Session()
+        self.session.headers.update(DEFAULT_HEADERS)
         self.request_delay = request_delay
         self.max_retries = max_retries
         self.timeout = timeout
-        self.max_workers = max(1, max_workers)
-        self._pacer = _Pacer(min_interval)
-        #: Set once LinkedIn pushes back, so callers can say results are partial.
-        self.throttled = False
-
-        # requests.Session is not thread-safe, so each worker thread gets its
-        # own. An explicitly passed session is used as-is and pins the client
-        # to one worker, which keeps single-threaded callers predictable.
-        self._explicit_session = session
-        if session is not None:
-            session.headers.update(DEFAULT_HEADERS)
-            self.max_workers = 1
-        self._local = threading.local()
-
-    @property
-    def session(self) -> requests.Session:
-        """This thread's session, created on first use."""
-        if self._explicit_session is not None:
-            return self._explicit_session
-
-        session = getattr(self._local, "session", None)
-        if session is None:
-            session = requests.Session()
-            session.headers.update(DEFAULT_HEADERS)
-            # Room for every worker in the connection pool, otherwise urllib3
-            # discards connections and warns on each request.
-            adapter = requests.adapters.HTTPAdapter(
-                pool_connections=self.max_workers, pool_maxsize=self.max_workers
-            )
-            session.mount("https://", adapter)
-            self._local.session = session
-        return session
-
-    def _map(self, fn, items: list):
-        """Run ``fn`` over ``items`` concurrently, keeping the input order."""
-        if self.max_workers == 1 or len(items) < 2:
-            return [fn(item) for item in items]
-
-        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
-            return list(pool.map(fn, items))
-
-    def _retry_after(self, response: requests.Response, attempt: int) -> float:
-        """How long to wait before retrying, preferring LinkedIn's own answer."""
-        header = (response.headers.get("Retry-After") or "").strip()
-        if header.isdigit():
-            return min(float(header), 30.0)
-        return (2**attempt) + random.uniform(0, 1)
 
     def _get(self, url: str, params: dict[str, str] | None = None) -> str:
         """GET ``url``, retrying with backoff on 429/5xx.
@@ -478,7 +384,6 @@ class LinkedInClient:
         last_error: Exception | None = None
 
         for attempt in range(self.max_retries):
-            self._pacer.wait()
             try:
                 response = self.session.get(url, params=params, timeout=self.timeout)
             except requests.RequestException as exc:  # network hiccup
@@ -492,20 +397,13 @@ class LinkedInClient:
                 # LinkedIn's way of saying "no more results past here".
                 return ""
             if response.status_code == 403:
-                self.throttled = True
                 raise BlockedError(
-                    "LinkedIn refused the request (HTTP 403). This usually follows a "
-                    "burst of traffic and clears on its own after a few minutes. Fewer "
-                    "results, and “Fetch full details” off, make it far less likely."
+                    "LinkedIn refused the request (HTTP 403). It usually clears on its "
+                    "own after a while; searching less often helps."
                 )
             if response.status_code == 429 or response.status_code >= 500:
                 last_error = LinkedInError(f"HTTP {response.status_code}")
-                if response.status_code == 429:
-                    # Back the whole client off, not just this request — the
-                    # other workers are about to hit the same wall.
-                    self.throttled = True
-                    self._pacer.slow_down()
-                time.sleep(self._retry_after(response, attempt))
+                time.sleep((2**attempt) + random.uniform(0, 1))
                 continue
 
             raise LinkedInError(f"Unexpected response from LinkedIn: HTTP {response.status_code}")
@@ -513,63 +411,40 @@ class LinkedInClient:
         if isinstance(last_error, LinkedInError) and "429" in str(last_error):
             raise RateLimitedError(
                 "LinkedIn is rate limiting this search (HTTP 429). Wait a few minutes, "
-                "then try fewer results — and with “Fetch full details” off, since that "
-                "makes one request per job."
+                "or ask for fewer results."
             )
         raise LinkedInError(f"Could not reach LinkedIn: {last_error}")
 
-    def _fetch_page(self, args: tuple[SearchQuery, int]) -> list[Job]:
-        query, start = args
-        html = self._get(SEARCH_URL, build_params(query, start))
-        return parse_jobs_html(html) if html else []
-
     def iter_jobs(self, query: SearchQuery, limit: int = 100) -> Iterator[Job]:
-        """Yield up to ``limit`` unique jobs, paging until LinkedIn runs dry.
-
-        Page offsets are known in advance, so a wave of them is fetched at once
-        rather than one at a time. Results are still yielded in LinkedIn's own
-        order — only the fetching overlaps.
-        """
+        """Yield up to ``limit`` unique jobs, paging until LinkedIn runs dry."""
         seen: set[str] = set()
         yielded = 0
+        empty_pages = 0
         start = 0
 
         while yielded < limit and start <= MAX_START:
-            remaining = limit - yielded
-            wave = min(
-                self.max_workers,
-                max(1, -(-remaining // PAGE_SIZE)),  # pages still needed
-                max(1, (MAX_START - start) // PAGE_SIZE + 1),
-            )
-            starts = [start + offset * PAGE_SIZE for offset in range(wave)]
-            try:
-                pages = self._map(self._fetch_page, [(query, s) for s in starts])
-            except LinkedInError:
-                # Half a page of results beats an error screen. Only the first
-                # wave has nothing to show, so only that one propagates.
-                if yielded:
+            html = self._get(SEARCH_URL, build_params(query, start))
+            page = parse_jobs_html(html) if html else []
+
+            new_on_page = 0
+            for job in page:
+                key = job.job_id or job.url
+                if key in seen:
+                    continue
+                seen.add(key)
+                new_on_page += 1
+                yielded += 1
+                yield job
+                if yielded >= limit:
                     return
-                raise
 
-            new_in_wave = 0
-            for page in pages:
-                for job in page:
-                    key = job.job_id or job.url
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    new_in_wave += 1
-                    yielded += 1
-                    yield job
-                    if yielded >= limit:
-                        return
-
-            # A whole wave with nothing new means LinkedIn has run dry.
-            if new_in_wave == 0:
+            # Two consecutive pages with nothing new means we have it all.
+            empty_pages = empty_pages + 1 if new_on_page == 0 else 0
+            if empty_pages >= 2:
                 return
 
-            start += wave * PAGE_SIZE
-            if self.request_delay:
+            start += PAGE_SIZE
+            if yielded < limit and start <= MAX_START:
                 time.sleep(self.request_delay)
 
     def search(
@@ -644,29 +519,17 @@ class LinkedInClient:
         capped. Jobs past ``limit`` are returned untouched.
         """
         target = min(limit, len(jobs))
-        if not target:
-            return list(jobs)
+        enriched: list[Job] = []
 
-        wanted = list(jobs[:target])
-        rest = list(jobs[target:])
+        for index, job in enumerate(jobs):
+            if index >= target:
+                enriched.append(job)
+                continue
 
-        if self.max_workers == 1 or target < 2:
-            enriched = []
-            for index, job in enumerate(wanted, start=1):
-                enriched.append(self.fetch_details(job))
-                if on_progress:
-                    on_progress(index, target)
-            return enriched + rest
+            enriched.append(self.fetch_details(job))
+            if on_progress:
+                on_progress(index + 1, target)
+            if index + 1 < target:
+                time.sleep(self.request_delay)
 
-        results: list[Job] = list(wanted)
-        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
-            futures = {pool.submit(self.fetch_details, job): i for i, job in enumerate(wanted)}
-            # ``as_completed`` is iterated here, in the calling thread, so
-            # ``on_progress`` never runs on a worker. Streamlit calls made off
-            # the main thread have no script context and are dropped silently.
-            for done, future in enumerate(as_completed(futures), start=1):
-                results[futures[future]] = future.result()
-                if on_progress:
-                    on_progress(done, target)
-
-        return results + rest
+        return enriched

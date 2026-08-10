@@ -21,16 +21,7 @@ from mulazmat import countries, filters, job_titles, theme  # noqa: E402
 from mulazmat.cards import render_grid  # noqa: E402
 from mulazmat.linkedin import LinkedInClient, LinkedInError  # noqa: E402
 from mulazmat.models import Job, SearchQuery  # noqa: E402
-from mulazmat.notices import throttle_notice  # noqa: E402
 from mulazmat.sample_data import sample_jobs  # noqa: E402
-
-try:  # pragma: no cover - import path differs across Streamlit versions
-    from streamlit.runtime.scriptrunner_utils.exceptions import ScriptControlException
-except ImportError:  # pragma: no cover
-    try:
-        from streamlit.runtime.scriptrunner.exceptions import ScriptControlException
-    except ImportError:
-        ScriptControlException = ()  # type: ignore[assignment]
 
 st.set_page_config(
     page_title="Mulazmat — LinkedIn Job Search",
@@ -51,23 +42,18 @@ def _cached_search(
     demo: bool,
     detail_count: int,
     detect_workplace: bool,
-) -> tuple[list[dict], str]:
+) -> list[dict]:
     """Run a search and cache it for 10 minutes.
 
     Keyed on ``cache_key`` (which excludes the company filter, since that is
     applied locally) so changing only the company name reuses the same results.
-
-    ``detail_count`` jobs are additionally opened on their own page for the
-    description and the rest. That is one request each on top of the search
-    itself, which is the difference between a handful of requests and a
-    hundred — and the main thing that provokes a rate limit.
     """
     query = SearchQuery(**query_fields)
     if demo:
-        jobs = sample_jobs(
-            query, limit, enriched=bool(detail_count), detect_workplace=detect_workplace
-        )
-        return [job.to_dict() for job in jobs], ""
+        return [
+            job.to_dict()
+            for job in sample_jobs(query, limit, bool(detail_count), detect_workplace)
+        ]
 
     client = LinkedInClient()
     progress = st.progress(0.0, text="Searching LinkedIn…")
@@ -97,14 +83,7 @@ def _cached_search(
     finally:
         progress.empty()
 
-    notice = throttle_notice(
-        throttled=client.throttled,
-        found=len(jobs),
-        limit=limit,
-        missing_details=sum(1 for job in jobs[:detail_count] if not job.description),
-        detail_count=detail_count,
-    )
-    return [job.to_dict() for job in jobs], notice
+    return [job.to_dict() for job in jobs]
 
 
 def _filters_panel() -> None:
@@ -149,14 +128,11 @@ def _filters_panel() -> None:
     st.checkbox(
         "Fetch full details",
         key="fetch_details",
-        help="Opens each posting for its description, employment type, applicant "
-        "count, apply link and hiring contact. One extra request per job, so it is "
-        "much slower and far likelier to be rate limited. Leave it off unless you "
-        "need the descriptions.",
+        help="Opens each posting for its description, applicant count and apply link. "
+        "One extra request per job — slower, and more likely to hit the rate limit.",
     )
     if st.session_state.get("fetch_details"):
         st.slider("Details for first N jobs", key="detail_count", min_value=5, max_value=50, step=5)
-
     st.checkbox(
         "Detect workplace type",
         key="detect_workplace",
@@ -348,7 +324,7 @@ if run:
         st.session_state.pop("results", None)
         st.session_state["show_saved"] = False
         try:
-            raw, notice = _cached_search(
+            raw = _cached_search(
                 query.cache_key(),
                 query.__dict__.copy(),
                 st.session_state.get("limit", 100),
@@ -360,17 +336,10 @@ if run:
             )
         except LinkedInError as exc:
             st.error(str(exc))
-        except ScriptControlException:
-            # st.rerun()/st.stop() and Streamlit's own "this run is over" signal
-            # travel as exceptions with an empty message. Swallowing them here
-            # both broke the rerun and printed a blank "Search failed:".
-            raise
         except Exception as exc:  # noqa: BLE001 — surface anything else to the user
-            detail = str(exc).strip() or "no further detail"
-            st.error(f"Search failed — {type(exc).__name__}: {detail}")
+            st.error(f"Search failed: {exc}")
         else:
             st.session_state["results"] = raw
-            st.session_state["notice"] = notice
             st.session_state["demo"] = st.session_state.get("demo_mode", False)
             st.session_state["recent_titles"] = job_titles.remember(
                 st.session_state.get("recent_titles", ()), query.keywords
@@ -384,8 +353,6 @@ if run:
 if "results" in st.session_state:
     if st.session_state.get("demo"):
         st.info("Demo mode — these are sample results, not live LinkedIn data.")
-    if st.session_state.get("notice"):
-        st.warning(st.session_state["notice"])
     workplace = st.session_state.get("searched_workplace", "")
     jobs = [Job(**row) for row in st.session_state["results"]]
     if workplace:

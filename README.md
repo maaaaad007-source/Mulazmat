@@ -21,8 +21,8 @@ UI with sample data, without touching LinkedIn.
 A single horizontal bar across the top — logo, job title, company, country,
 **Search**, **Filters**, and a bookmark that switches to your saved jobs. There is
 no sidebar. Everything secondary lives in the **Filters** dropdown: sort, date
-posted, workplace, experience level, max results, card/table view, workplace
-detection, demo mode and the geoId override.
+posted, workplace, experience level, max results, card/table view, detail
+fetching, demo mode and the geoId override.
 
 Results are a two-up grid of cards: company logo, title, company, location, a
 workplace / job-type / age strip, and the **Contact & apply** footer. Logos come
@@ -49,11 +49,12 @@ to bring the hamburger menu back.
 | Sort | Most relevant or most recent. |
 | Max results | 25–500. |
 | View | **Cards** (default) or **Table**. Both live under **Filters**. |
-| Fetch full details | **Off by default.** Opens each posting for its description, employment type, applicant count, apply link and hiring contact — one extra request per job, capped at the first N. See below. |
+| Fetch full details | Off by default. Opens each posting for its description, employment type, applicant count and apply link — one extra request per job, capped at the first N. With it on, cards gain a description snippet. |
 | Detect workplace type | Off by default. Labels every result Remote or Hybrid, at the cost of two extra searches. See below. |
 
 Results render as cards — title, company, location, the workplace / job-type /
-age strip, the description, and a **Contact & apply** footer — or as a sortable table. Either way there is a **Download CSV** button,
+age strip, a description once details are fetched, and a **Contact & apply**
+footer — or as a sortable table. Either way there is a **Download CSV** button,
 and the CSV carries every field, including ones the cards leave out such as
 salary and the full posted date.
 
@@ -81,57 +82,8 @@ published routes to a human:
 Cards say "No public contact links on this posting" when a posting genuinely has
 none, rather than inventing something.
 
-## Full details are opt-in, and that is the point
-
-The description, employment type, applicant count, apply link and hiring
-contact are not in the search results — each one has to be read from its own
-job page. **Fetch full details** does that, and it is off by default because
-the cost is one request per job:
-
-| | requests for a 100-result search | time |
-| --- | --- | --- |
-| Details off | ~10 | ~1.5s |
-| Details on, first 25 | ~35 | ~3s |
-| Details on, all 100 | ~110 | ~8s |
-
-That tenfold jump in request volume is the single biggest cause of a rate
-limit. Leave it off for browsing; turn it on when you have narrowed down to a
-shortlist worth reading.
-
-Requests overlap rather than running one after another, which is the difference
-between a search taking minutes and taking seconds. Search pages go out the same
-way — their offsets are known in advance, so a wave of them is requested at
-once. Results are still yielded in LinkedIn's own order; only the fetching
-overlaps.
-
-### Staying under the rate limit
-
-Two dials in `src/mulazmat/linkedin.py`, and the second matters more:
-
-- `MAX_WORKERS` (4) — requests in flight at once.
-- `MIN_INTERVAL` (0.25s) — the minimum gap between the *start* of any two
-  requests, across every thread. What LinkedIn measures is the request rate, so
-  that is what has to be bounded; concurrency alone does not do it. 0.25s is a
-  ceiling of four requests a second.
-
-Roughly, at 250ms per request: 25 results in ~2s, 50 in ~4s, 100 in ~8s.
-
-On a 429 the client widens `MIN_INTERVAL` for the rest of the run rather than
-retrying at the same rate, and honours a `Retry-After` header when LinkedIn
-sends one. **A rate limit part-way through no longer throws the search away** —
-you get the results that did arrive.
-
-You are only told about it when it actually cost you something: fewer results
-than you asked for, or postings that could not be opened for their description.
-A 429 the backoff recovered from is not worth a banner.
-
-If you still see "slow down", raise `MIN_INTERVAL` before touching
-`MAX_WORKERS`.
-
-`requests.Session` is not thread-safe, so each worker thread gets its own.
-Passing a session to `LinkedInClient` pins it to a single worker. Progress
-callbacks are invoked on the calling thread, never on a pool worker — Streamlit
-APIs are only valid on the thread running the script.
+Most of that footer beyond the company page only appears with **Fetch full
+details** switched on, since it comes from the individual job page.
 
 ## How it gets the jobs — and the honest caveats
 
@@ -174,7 +126,6 @@ src/mulazmat/
   filters.py                Date/experience/job-type/workplace vocabularies
   linkedin.py               Guest-endpoint client, pagination, HTML parsing
   models.py                 Job and SearchQuery
-  notices.py                Wording for the rate-limit banner
   sample_data.py            Offline demo results
 tests/                      Parser, card, filter and end-to-end UI tests
 ```
@@ -186,13 +137,11 @@ pip install pytest
 pytest
 ```
 
-114 tests: HTML parsing against pinned real-world search and job-detail
+89 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), and end-to-end runs that drive the
 actual Streamlit app through `AppTest` — the top bar, the filters panel, title
-suggestions, saving and unsaving jobs, and the saved-only view. Concurrency has
-its own file: that fetching really does overlap, that order and progress survive
-it, and that one failed page does not sink the batch.
+suggestions, saving and unsaving jobs, and the saved-only view.
 
 Note that the test suite deliberately makes **no network calls** — the live
 endpoint is exercised by running the app, not by CI.

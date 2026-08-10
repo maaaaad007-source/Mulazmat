@@ -97,30 +97,20 @@ def test_searching_puts_the_title_at_the_top_of_the_suggestions():
     assert app.selectbox(key="title").options[0] == "Chef"
 
 
-def test_fetch_full_details_adds_the_description():
+def test_fetch_full_details_puts_a_description_on_the_cards():
     app = _app()
     app.checkbox(key="fetch_details").set_value(True).run()
     app = _search(app)
 
     html = _html(app)
     assert '<p class="mz-desc">' in html
-    # The strip fills out too, since employment type comes from the same page.
+    # And the strip fills out, because employment type comes from the same place.
     assert "Full-time" in html or "Contract" in html
 
 
-def test_details_are_off_by_default_so_a_search_is_one_request_per_page():
-    # The expensive path is opt-in: leaving it off is what keeps a search
-    # inside LinkedIn's rate limit.
-    app = _app()
-    assert app.checkbox(key="fetch_details").value is False
-    assert '<p class="mz-desc">' not in _html(_search(app))
-
-
-def test_the_detail_slider_only_appears_once_details_are_on():
-    app = _app()
-    assert not [s for s in app.slider if s.key == "detail_count"]
-    app.checkbox(key="fetch_details").set_value(True).run()
-    assert app.slider(key="detail_count").value is not None
+def test_without_enrichment_cards_carry_no_description():
+    html = _html(_search(_app()))
+    assert '<p class="mz-desc">' not in html
 
 
 def test_workplace_filter_labels_the_cards():
@@ -137,25 +127,6 @@ def test_workplace_filter_labels_the_cards():
 def test_no_workplace_filter_leaves_the_label_alone():
     app = _search(_app())
     assert app.session_state["searched_workplace"] == ""
-
-
-def test_streamlit_control_flow_is_not_swallowed_as_a_search_failure():
-    # st.rerun()/st.stop() travel as exceptions whose message is empty, so a
-    # blanket `except Exception` both broke the rerun and rendered a bare
-    # "Search failed:" with nothing after it.
-    import app as app_module
-
-    assert app_module.ScriptControlException is not ()
-    source = Path(app_module.__file__).read_text()
-    assert "except ScriptControlException:" in source
-    assert source.index("except ScriptControlException:") < source.index("except Exception as exc:")
-
-
-def test_unexpected_failures_name_their_exception_type():
-    import app as app_module
-
-    source = Path(app_module.__file__).read_text()
-    assert "type(exc).__name__" in source, "a bare message leaves nothing to diagnose"
 
 
 def test_country_selection_seeds_the_geo_id():
@@ -253,13 +224,8 @@ def test_workplace_select_all_sends_no_workplace_filter():
     assert app.radio(key="workplace").value == "Remote"
 
 
-def test_descriptions_can_be_expanded_in_place():
+def test_detail_slider_only_appears_when_enrichment_is_on():
     app = _app()
+    assert not [s for s in app.slider if s.key == "detail_count"]
     app.checkbox(key="fetch_details").set_value(True).run()
-    app = _search(app)
-    toggles = [b for b in app.button if b.key.startswith("desc_")]
-    assert toggles, "long postings should offer a toggle"
-
-    app = toggles[0].click().run()
-    assert '<p class="mz-desc mz-desc--full">' in _html(app)
-    assert any(b.label == "Show less" for b in app.button)
+    assert app.slider(key="detail_count").value is not None
