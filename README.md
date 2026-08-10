@@ -87,9 +87,20 @@ employment type, applicant count, apply link and hiring contact live — the
 search endpoint returns none of it. There is no toggle for this: it always
 happens.
 
-The cost is one extra request per job, paced ~1.5s apart, so **Max results** is
-what governs how long a search takes. 25 results is well under a minute; 500 is
-a long wait and a good way to meet a rate limit. Start narrow.
+Those requests run **8 at a time** rather than one after another, which is the
+difference between a search taking minutes and taking seconds — a simulated
+100-result search at 250ms per request drops from ~41s sequential to ~4s. Search
+pages are fetched the same way: their offsets are known in advance, so a wave of
+them goes out at once. Results are still yielded in LinkedIn's own order; only
+the fetching overlaps.
+
+Concurrency is bounded at `MAX_WORKERS` in `src/mulazmat/linkedin.py`, with a
+short pause between waves. Both exist to stay under LinkedIn's rate limit —
+raise them and 429s become likelier, not just faster. If you do start seeing
+"slow down" messages, lower `MAX_WORKERS` before anything else.
+
+`requests.Session` is not thread-safe, so each worker thread gets its own.
+Passing a session to `LinkedInClient` pins it to a single worker.
 
 ## How it gets the jobs — and the honest caveats
 
@@ -143,11 +154,13 @@ pip install pytest
 pytest
 ```
 
-89 tests: HTML parsing against pinned real-world search and job-detail
+98 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), and end-to-end runs that drive the
 actual Streamlit app through `AppTest` — the top bar, the filters panel, title
-suggestions, saving and unsaving jobs, and the saved-only view.
+suggestions, saving and unsaving jobs, and the saved-only view. Concurrency has
+its own file: that fetching really does overlap, that order and progress survive
+it, and that one failed page does not sink the batch.
 
 Note that the test suite deliberately makes **no network calls** — the live
 endpoint is exercised by running the app, not by CI.

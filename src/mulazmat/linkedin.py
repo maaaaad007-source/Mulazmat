@@ -24,8 +24,10 @@ import dataclasses
 import json
 import random
 import re
+import threading
 import time
 from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from bs4 import BeautifulSoup
@@ -38,6 +40,12 @@ JOB_DETAIL_URL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_i
 #: LinkedIn returns 10 cards per request and stops serving results past ~1000.
 PAGE_SIZE = 10
 MAX_START = 975
+
+#: Requests in flight at once. Every result needs its own detail page, so doing
+#: those one at a time is the difference between seconds and minutes. Kept
+#: modest because the endpoint rate limits: the retry/backoff path still
+#: handles a 429, but the point is not to provoke one.
+MAX_WORKERS = 8
 
 DEFAULT_HEADERS = {
     "User-Agent": (
@@ -365,15 +373,53 @@ class LinkedInClient:
     def __init__(
         self,
         session: requests.Session | None = None,
-        request_delay: float = 1.5,
+        # Paced between waves, not between individual requests — cheap
+        # insurance against a 429 without costing much wall time.
+        request_delay: float = 0.25,
         max_retries: int = 3,
         timeout: float = 20.0,
+        max_workers: int = MAX_WORKERS,
     ) -> None:
-        self.session = session or requests.Session()
-        self.session.headers.update(DEFAULT_HEADERS)
         self.request_delay = request_delay
         self.max_retries = max_retries
         self.timeout = timeout
+        self.max_workers = max(1, max_workers)
+
+        # requests.Session is not thread-safe, so each worker thread gets its
+        # own. An explicitly passed session is used as-is and pins the client
+        # to one worker, which keeps single-threaded callers predictable.
+        self._explicit_session = session
+        if session is not None:
+            session.headers.update(DEFAULT_HEADERS)
+            self.max_workers = 1
+        self._local = threading.local()
+
+    @property
+    def session(self) -> requests.Session:
+        """This thread's session, created on first use."""
+        if self._explicit_session is not None:
+            return self._explicit_session
+
+        session = getattr(self._local, "session", None)
+        if session is None:
+            session = requests.Session()
+            session.headers.update(DEFAULT_HEADERS)
+            # Room for every worker in the connection pool, otherwise urllib3
+            # discards connections and warns on each request.
+            adapter = requests.adapters.HTTPAdapter(
+                pool_connections=self.max_workers, pool_maxsize=self.max_workers
+            )
+            session.mount("https://", adapter)
+            self._local.session = session
+        return session
+
+    def _map(self, fn, items: list):
+        """Run ``fn`` over ``items`` concurrently, keeping the input order."""
+        if self.max_workers == 1 or len(items) < 2:
+            return [fn(item) for item in items]
+
+        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
+            return list(pool.map(fn, items))
 
     def _get(self, url: str, params: dict[str, str] | None = None) -> str:
         """GET ``url``, retrying with backoff on 429/5xx.
@@ -415,36 +461,51 @@ class LinkedInClient:
             )
         raise LinkedInError(f"Could not reach LinkedIn: {last_error}")
 
+    def _fetch_page(self, args: tuple[SearchQuery, int]) -> list[Job]:
+        query, start = args
+        html = self._get(SEARCH_URL, build_params(query, start))
+        return parse_jobs_html(html) if html else []
+
     def iter_jobs(self, query: SearchQuery, limit: int = 100) -> Iterator[Job]:
-        """Yield up to ``limit`` unique jobs, paging until LinkedIn runs dry."""
+        """Yield up to ``limit`` unique jobs, paging until LinkedIn runs dry.
+
+        Page offsets are known in advance, so a wave of them is fetched at once
+        rather than one at a time. Results are still yielded in LinkedIn's own
+        order — only the fetching overlaps.
+        """
         seen: set[str] = set()
         yielded = 0
-        empty_pages = 0
         start = 0
 
         while yielded < limit and start <= MAX_START:
-            html = self._get(SEARCH_URL, build_params(query, start))
-            page = parse_jobs_html(html) if html else []
+            remaining = limit - yielded
+            wave = min(
+                self.max_workers,
+                max(1, -(-remaining // PAGE_SIZE)),  # pages still needed
+                max(1, (MAX_START - start) // PAGE_SIZE + 1),
+            )
+            starts = [start + offset * PAGE_SIZE for offset in range(wave)]
+            pages = self._map(self._fetch_page, [(query, s) for s in starts])
 
-            new_on_page = 0
-            for job in page:
-                key = job.job_id or job.url
-                if key in seen:
-                    continue
-                seen.add(key)
-                new_on_page += 1
-                yielded += 1
-                yield job
-                if yielded >= limit:
-                    return
+            new_in_wave = 0
+            for page in pages:
+                for job in page:
+                    key = job.job_id or job.url
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    new_in_wave += 1
+                    yielded += 1
+                    yield job
+                    if yielded >= limit:
+                        return
 
-            # Two consecutive pages with nothing new means we have it all.
-            empty_pages = empty_pages + 1 if new_on_page == 0 else 0
-            if empty_pages >= 2:
+            # A whole wave with nothing new means LinkedIn has run dry.
+            if new_in_wave == 0:
                 return
 
-            start += PAGE_SIZE
-            if yielded < limit and start <= MAX_START:
+            start += wave * PAGE_SIZE
+            if self.request_delay:
                 time.sleep(self.request_delay)
 
     def search(
@@ -519,17 +580,17 @@ class LinkedInClient:
         capped. Jobs past ``limit`` are returned untouched.
         """
         target = min(limit, len(jobs))
-        enriched: list[Job] = []
+        if not target:
+            return list(jobs)
 
-        for index, job in enumerate(jobs):
-            if index >= target:
-                enriched.append(job)
-                continue
+        done = 0
 
-            enriched.append(self.fetch_details(job))
+        def fetch(job: Job) -> Job:
+            nonlocal done
+            result = self.fetch_details(job)
+            done += 1
             if on_progress:
-                on_progress(index + 1, target)
-            if index + 1 < target:
-                time.sleep(self.request_delay)
+                on_progress(done, target)
+            return result
 
-        return enriched
+        return self._map(fetch, list(jobs[:target])) + list(jobs[target:])
