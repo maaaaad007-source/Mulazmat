@@ -5,7 +5,14 @@ import time
 
 import requests
 
-from mulazmat.linkedin import PAGE_SIZE, LinkedInClient, LinkedInError
+from mulazmat.linkedin import (
+    MAX_INTERVAL,
+    PAGE_SIZE,
+    LinkedInClient,
+    LinkedInError,
+    RateLimitedError,
+    _Pacer,
+)
 from mulazmat.models import Job, SearchQuery
 
 
@@ -130,10 +137,15 @@ def test_a_caller_supplied_session_pins_the_client_to_one_worker():
 
 def test_each_thread_gets_its_own_session():
     client = LinkedInClient(max_workers=4)
-    seen: list[int] = []
+    # Hold the objects, not their ids: a collected session's address can be
+    # handed straight back to the next allocation.
+    seen: list[requests.Session] = []
+    lock = threading.Lock()
 
     def grab() -> None:
-        seen.append(id(client.session))
+        session = client.session
+        with lock:
+            seen.append(session)
 
     threads = [threading.Thread(target=grab) for _ in range(4)]
     for thread in threads:
@@ -141,7 +153,7 @@ def test_each_thread_gets_its_own_session():
     for thread in threads:
         thread.join()
 
-    assert len(set(seen)) == 4
+    assert len({id(session) for session in seen}) == 4
 
 
 def test_one_failing_detail_page_does_not_sink_the_batch():
@@ -157,3 +169,118 @@ def test_one_failing_detail_page_does_not_sink_the_batch():
     assert [job.job_id for job in enriched] == [str(i) for i in range(6)]
     assert not enriched[3].description  # the failure kept its original job
     assert enriched[0].description
+
+
+class _Response:
+    def __init__(self, status_code: int, headers: dict | None = None, text: str = "ok"):
+        self.status_code = status_code
+        self.headers = headers or {}
+        self.text = text
+
+
+class _Rebuffed(LinkedInClient):
+    """Answers with 429 for the first ``fails`` requests, then normally."""
+
+    def __init__(self, fails: int, headers: dict | None = None, **kwargs):
+        super().__init__(**kwargs)
+        self.fails = fails
+        self.headers = headers or {}
+        self.seen = 0
+        self.slept: list[float] = []
+        self._lock = threading.Lock()
+
+    @property
+    def session(self):
+        client = self
+
+        class _S:
+            @staticmethod
+            def get(url, params=None, timeout=None):
+                with client._lock:
+                    client.seen += 1
+                    n = client.seen
+                return (
+                    _Response(429, client.headers)
+                    if n <= client.fails
+                    else _Response(200, text="<div class='description__text'>Text.</div>")
+                )
+
+        return _S()
+
+
+def test_requests_are_paced_apart_even_with_many_workers():
+    # Concurrency alone does not bound the request *rate*, which is what
+    # LinkedIn actually measures.
+    pacer = _Pacer(0.05)
+    started: list[float] = []
+    lock = threading.Lock()
+
+    def go() -> None:
+        pacer.wait()
+        with lock:
+            started.append(time.monotonic())
+
+    threads = [threading.Thread(target=go) for _ in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    started.sort()
+    gaps = [b - a for a, b in zip(started, started[1:])]
+    assert all(gap >= 0.04 for gap in gaps), gaps
+
+
+def test_a_429_widens_the_gap_for_the_rest_of_the_run():
+    client = _Rebuffed(fails=1, min_interval=0.01, max_workers=1)
+    before = client._pacer.interval
+
+    client._get("https://example.test/x")
+
+    assert client.throttled
+    assert client._pacer.interval > before
+
+
+def test_backing_off_is_capped():
+    pacer = _Pacer(1.0)
+    for _ in range(10):
+        pacer.slow_down()
+    assert pacer.interval == MAX_INTERVAL
+
+
+def test_retry_after_is_honoured_when_linkedin_sends_one():
+    client = _Rebuffed(fails=1, headers={"Retry-After": "3"}, min_interval=0.01, max_workers=1)
+    assert client._retry_after(_Response(429, {"Retry-After": "3"}), attempt=0) == 3.0
+    # Absurd values are clamped rather than trusted.
+    assert client._retry_after(_Response(429, {"Retry-After": "9999"}), attempt=0) == 30.0
+    # A non-numeric header falls back to exponential backoff.
+    assert client._retry_after(_Response(429, {"Retry-After": "later"}), attempt=1) >= 2.0
+
+
+def test_rate_limiting_partway_through_keeps_the_results_so_far():
+    class _DiesAfterOneWave(_SlowClient):
+        def _fetch_page(self, args):
+            query, start = args
+            if start >= PAGE_SIZE * 4:
+                raise RateLimitedError("slow down")
+            return super()._fetch_page(args)
+
+    client = _DiesAfterOneWave(pages=20, latency=0.0, max_workers=4)
+    jobs = client.search(SearchQuery(keywords="x"), limit=100)
+
+    # Four pages made it; the error did not throw the lot away.
+    assert len(jobs) == 40
+
+
+def test_rate_limiting_on_the_very_first_wave_still_raises():
+    class _DiesImmediately(_SlowClient):
+        def _fetch_page(self, args):
+            raise RateLimitedError("slow down")
+
+    client = _DiesImmediately(latency=0.0, max_workers=4)
+    try:
+        client.search(SearchQuery(keywords="x"), limit=100)
+    except RateLimitedError:
+        pass
+    else:
+        raise AssertionError("with nothing to show, the error must surface")

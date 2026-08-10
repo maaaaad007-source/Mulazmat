@@ -87,17 +87,32 @@ employment type, applicant count, apply link and hiring contact live — the
 search endpoint returns none of it. There is no toggle for this: it always
 happens.
 
-Those requests run **8 at a time** rather than one after another, which is the
-difference between a search taking minutes and taking seconds — a simulated
-100-result search at 250ms per request drops from ~41s sequential to ~4s. Search
-pages are fetched the same way: their offsets are known in advance, so a wave of
-them goes out at once. Results are still yielded in LinkedIn's own order; only
-the fetching overlaps.
+Those requests overlap rather than running one after another, which is the
+difference between a search taking minutes and taking seconds. Search pages go
+out the same way — their offsets are known in advance, so a wave of them is
+requested at once. Results are still yielded in LinkedIn's own order; only the
+fetching overlaps.
 
-Concurrency is bounded at `MAX_WORKERS` in `src/mulazmat/linkedin.py`, with a
-short pause between waves. Both exist to stay under LinkedIn's rate limit —
-raise them and 429s become likelier, not just faster. If you do start seeing
-"slow down" messages, lower `MAX_WORKERS` before anything else.
+### Staying under the rate limit
+
+Two dials in `src/mulazmat/linkedin.py`, and the second matters more:
+
+- `MAX_WORKERS` (4) — requests in flight at once.
+- `MIN_INTERVAL` (0.25s) — the minimum gap between the *start* of any two
+  requests, across every thread. What LinkedIn measures is the request rate, so
+  that is what has to be bounded; concurrency alone does not do it. 0.25s is a
+  ceiling of four requests a second.
+
+Roughly, at 250ms per request: 25 results in ~2s, 50 in ~4s, 100 in ~8s.
+
+On a 429 the client widens `MIN_INTERVAL` for the rest of the run rather than
+retrying at the same rate, honours a `Retry-After` header when LinkedIn sends
+one, and marks itself throttled so the UI can say results are partial. **A rate
+limit part-way through no longer throws the search away** — you get the results
+that did arrive, with a note saying so.
+
+If you still see "slow down", raise `MIN_INTERVAL` before touching
+`MAX_WORKERS`.
 
 `requests.Session` is not thread-safe, so each worker thread gets its own.
 Passing a session to `LinkedInClient` pins it to a single worker.
@@ -154,7 +169,7 @@ pip install pytest
 pytest
 ```
 
-98 tests: HTML parsing against pinned real-world search and job-detail
+104 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), and end-to-end runs that drive the
 actual Streamlit app through `AppTest` — the top bar, the filters panel, title

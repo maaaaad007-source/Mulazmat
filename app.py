@@ -37,7 +37,7 @@ WORKPLACE_CHOICES = ["Select all", *filters.WORKPLACE_TYPES]
 @st.cache_data(ttl=600, show_spinner=False)
 def _cached_search(
     cache_key: tuple, query_fields: dict, limit: int, demo: bool, detect_workplace: bool
-) -> list[dict]:
+) -> tuple[list[dict], str]:
     """Run a search and cache it for 10 minutes.
 
     Keyed on ``cache_key`` (which excludes the company filter, since that is
@@ -50,10 +50,8 @@ def _cached_search(
     """
     query = SearchQuery(**query_fields)
     if demo:
-        return [
-            job.to_dict()
-            for job in sample_jobs(query, limit, enriched=True, detect_workplace=detect_workplace)
-        ]
+        jobs = sample_jobs(query, limit, enriched=True, detect_workplace=detect_workplace)
+        return [job.to_dict() for job in jobs], ""
 
     client = LinkedInClient()
     progress = st.progress(0.0, text="Searching LinkedIn…")
@@ -83,7 +81,14 @@ def _cached_search(
     finally:
         progress.empty()
 
-    return [job.to_dict() for job in jobs]
+    notice = ""
+    if client.throttled:
+        notice = (
+            f"LinkedIn started rate limiting partway through, so this is "
+            f"{len(jobs)} results rather than the {limit} asked for, and some may "
+            f"be missing their description. Asking for fewer results avoids it."
+        )
+    return [job.to_dict() for job in jobs], notice
 
 
 def _filters_panel() -> None:
@@ -316,7 +321,7 @@ if run:
         st.session_state.pop("results", None)
         st.session_state["show_saved"] = False
         try:
-            raw = _cached_search(
+            raw, notice = _cached_search(
                 query.cache_key(),
                 query.__dict__.copy(),
                 st.session_state.get("limit", 100),
@@ -329,6 +334,7 @@ if run:
             st.error(f"Search failed: {exc}")
         else:
             st.session_state["results"] = raw
+            st.session_state["notice"] = notice
             st.session_state["demo"] = st.session_state.get("demo_mode", False)
             st.session_state["recent_titles"] = job_titles.remember(
                 st.session_state.get("recent_titles", ()), query.keywords
@@ -342,6 +348,8 @@ if run:
 if "results" in st.session_state:
     if st.session_state.get("demo"):
         st.info("Demo mode — these are sample results, not live LinkedIn data.")
+    if st.session_state.get("notice"):
+        st.warning(st.session_state["notice"])
     workplace = st.session_state.get("searched_workplace", "")
     jobs = [Job(**row) for row in st.session_state["results"]]
     if workplace:

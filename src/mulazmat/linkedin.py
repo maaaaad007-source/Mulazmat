@@ -42,10 +42,15 @@ PAGE_SIZE = 10
 MAX_START = 975
 
 #: Requests in flight at once. Every result needs its own detail page, so doing
-#: those one at a time is the difference between seconds and minutes. Kept
-#: modest because the endpoint rate limits: the retry/backoff path still
-#: handles a 429, but the point is not to provoke one.
-MAX_WORKERS = 8
+#: those one at a time is the difference between seconds and minutes.
+MAX_WORKERS = 4
+
+#: Minimum gap between the *start* of any two requests, across all threads.
+#: Concurrency alone is not enough to stay under LinkedIn's limit — what it
+#: measures is the request rate, so that is what has to be bounded. Widens
+#: automatically after a 429 and stays widened for the rest of the run.
+MIN_INTERVAL = 0.25
+MAX_INTERVAL = 2.0
 
 DEFAULT_HEADERS = {
     "User-Agent": (
@@ -56,6 +61,38 @@ DEFAULT_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
     "X-Requested-With": "XMLHttpRequest",
 }
+
+
+class _Pacer:
+    """Bounds how often requests may start, shared across worker threads.
+
+    Threads reserve their slot under a lock and then sleep outside it, so eight
+    workers issue at most one request every ``min_interval`` between them
+    rather than eight at once.
+    """
+
+    def __init__(self, min_interval: float) -> None:
+        self._min_interval = min_interval
+        self._next_at = 0.0
+        self._lock = threading.Lock()
+
+    def wait(self) -> None:
+        with self._lock:
+            start_at = max(time.monotonic(), self._next_at)
+            self._next_at = start_at + self._min_interval
+        delay = start_at - time.monotonic()
+        if delay > 0:
+            time.sleep(delay)
+
+    def slow_down(self, factor: float = 2.0) -> float:
+        """Widen the gap after a rebuff, and report the new interval."""
+        with self._lock:
+            self._min_interval = min(self._min_interval * factor, MAX_INTERVAL)
+            return self._min_interval
+
+    @property
+    def interval(self) -> float:
+        return self._min_interval
 
 
 class LinkedInError(RuntimeError):
@@ -379,11 +416,15 @@ class LinkedInClient:
         max_retries: int = 3,
         timeout: float = 20.0,
         max_workers: int = MAX_WORKERS,
+        min_interval: float = MIN_INTERVAL,
     ) -> None:
         self.request_delay = request_delay
         self.max_retries = max_retries
         self.timeout = timeout
         self.max_workers = max(1, max_workers)
+        self._pacer = _Pacer(min_interval)
+        #: Set once LinkedIn pushes back, so callers can say results are partial.
+        self.throttled = False
 
         # requests.Session is not thread-safe, so each worker thread gets its
         # own. An explicitly passed session is used as-is and pins the client
@@ -421,6 +462,13 @@ class LinkedInClient:
         with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
             return list(pool.map(fn, items))
 
+    def _retry_after(self, response: requests.Response, attempt: int) -> float:
+        """How long to wait before retrying, preferring LinkedIn's own answer."""
+        header = (response.headers.get("Retry-After") or "").strip()
+        if header.isdigit():
+            return min(float(header), 30.0)
+        return (2**attempt) + random.uniform(0, 1)
+
     def _get(self, url: str, params: dict[str, str] | None = None) -> str:
         """GET ``url``, retrying with backoff on 429/5xx.
 
@@ -430,6 +478,7 @@ class LinkedInClient:
         last_error: Exception | None = None
 
         for attempt in range(self.max_retries):
+            self._pacer.wait()
             try:
                 response = self.session.get(url, params=params, timeout=self.timeout)
             except requests.RequestException as exc:  # network hiccup
@@ -443,13 +492,19 @@ class LinkedInClient:
                 # LinkedIn's way of saying "no more results past here".
                 return ""
             if response.status_code == 403:
+                self.throttled = True
                 raise BlockedError(
                     "LinkedIn refused the request (HTTP 403). It usually clears on its "
                     "own after a while; searching less often helps."
                 )
             if response.status_code == 429 or response.status_code >= 500:
                 last_error = LinkedInError(f"HTTP {response.status_code}")
-                time.sleep((2**attempt) + random.uniform(0, 1))
+                if response.status_code == 429:
+                    # Back the whole client off, not just this request — the
+                    # other workers are about to hit the same wall.
+                    self.throttled = True
+                    self._pacer.slow_down()
+                time.sleep(self._retry_after(response, attempt))
                 continue
 
             raise LinkedInError(f"Unexpected response from LinkedIn: HTTP {response.status_code}")
@@ -485,7 +540,14 @@ class LinkedInClient:
                 max(1, (MAX_START - start) // PAGE_SIZE + 1),
             )
             starts = [start + offset * PAGE_SIZE for offset in range(wave)]
-            pages = self._map(self._fetch_page, [(query, s) for s in starts])
+            try:
+                pages = self._map(self._fetch_page, [(query, s) for s in starts])
+            except LinkedInError:
+                # Half a page of results beats an error screen. Only the first
+                # wave has nothing to show, so only that one propagates.
+                if yielded:
+                    return
+                raise
 
             new_in_wave = 0
             for page in pages:
