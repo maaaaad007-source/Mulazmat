@@ -21,6 +21,7 @@ from mulazmat import countries, filters, job_titles, theme  # noqa: E402
 from mulazmat.cards import render_grid  # noqa: E402
 from mulazmat.linkedin import LinkedInClient, LinkedInError  # noqa: E402
 from mulazmat.models import Job, SearchQuery  # noqa: E402
+from mulazmat.notices import throttle_notice  # noqa: E402
 from mulazmat.sample_data import sample_jobs  # noqa: E402
 
 try:  # pragma: no cover - import path differs across Streamlit versions
@@ -96,19 +97,13 @@ def _cached_search(
     finally:
         progress.empty()
 
-    notice = ""
-    if client.throttled:
-        notice = (
-            f"LinkedIn started rate limiting partway through, so this is {len(jobs)} "
-            f"results rather than the {limit} asked for."
-        )
-        if detail_count:
-            notice += (
-                " **Fetch full details** is the usual cause — it makes one request per"
-                " job. Turning it off, or asking for fewer results, avoids this."
-            )
-        else:
-            notice += " Asking for fewer results avoids this."
+    notice = throttle_notice(
+        throttled=client.throttled,
+        found=len(jobs),
+        limit=limit,
+        missing_details=sum(1 for job in jobs[:detail_count] if not job.description),
+        detail_count=detail_count,
+    )
     return [job.to_dict() for job in jobs], notice
 
 

@@ -117,10 +117,13 @@ Two dials in `src/mulazmat/linkedin.py`, and the second matters more:
 Roughly, at 250ms per request: 25 results in ~2s, 50 in ~4s, 100 in ~8s.
 
 On a 429 the client widens `MIN_INTERVAL` for the rest of the run rather than
-retrying at the same rate, honours a `Retry-After` header when LinkedIn sends
-one, and marks itself throttled so the UI can say results are partial. **A rate
-limit part-way through no longer throws the search away** — you get the results
-that did arrive, with a note saying so.
+retrying at the same rate, and honours a `Retry-After` header when LinkedIn
+sends one. **A rate limit part-way through no longer throws the search away** —
+you get the results that did arrive.
+
+You are only told about it when it actually cost you something: fewer results
+than you asked for, or postings that could not be opened for their description.
+A 429 the backoff recovered from is not worth a banner.
 
 If you still see "slow down", raise `MIN_INTERVAL` before touching
 `MAX_WORKERS`.
@@ -171,6 +174,7 @@ src/mulazmat/
   filters.py                Date/experience/job-type/workplace vocabularies
   linkedin.py               Guest-endpoint client, pagination, HTML parsing
   models.py                 Job and SearchQuery
+  notices.py                Wording for the rate-limit banner
   sample_data.py            Offline demo results
 tests/                      Parser, card, filter and end-to-end UI tests
 ```
@@ -182,7 +186,7 @@ pip install pytest
 pytest
 ```
 
-108 tests: HTML parsing against pinned real-world search and job-detail
+114 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), and end-to-end runs that drive the
 actual Streamlit app through `AppTest` — the top bar, the filters panel, title
