@@ -49,12 +49,10 @@ to bring the hamburger menu back.
 | Sort | Most relevant or most recent. |
 | Max results | 25–500. |
 | View | **Cards** (default) or **Table**. Both live under **Filters**. |
-| Fetch full details | Off by default. Opens each posting for its description, employment type, applicant count and apply link — one extra request per job, capped at the first N. With it on, cards gain a description snippet. |
 | Detect workplace type | Off by default. Labels every result Remote or Hybrid, at the cost of two extra searches. See below. |
 
 Results render as cards — title, company, location, the workplace / job-type /
-age strip, a description once details are fetched, and a **Contact & apply**
-footer — or as a sortable table. Either way there is a **Download CSV** button,
+age strip, the description, and a **Contact & apply** footer — or as a sortable table. Either way there is a **Download CSV** button,
 and the CSV carries every field, including ones the cards leave out such as
 salary and the full posted date.
 
@@ -82,8 +80,16 @@ published routes to a human:
 Cards say "No public contact links on this posting" when a posting genuinely has
 none, rather than inventing something.
 
-Most of that footer beyond the company page only appears with **Fetch full
-details** switched on, since it comes from the individual job page.
+## Every result is fetched in full
+
+Each result is opened on its own job page, which is where the description,
+employment type, applicant count, apply link and hiring contact live — the
+search endpoint returns none of it. There is no toggle for this: it always
+happens.
+
+The cost is one extra request per job, paced ~1.5s apart, so **Max results** is
+what governs how long a search takes. 25 results is well under a minute; 500 is
+a long wait and a good way to meet a rate limit. Start narrow.
 
 ## How it gets the jobs — and the honest caveats
 

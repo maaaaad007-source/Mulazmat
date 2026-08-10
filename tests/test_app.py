@@ -53,7 +53,7 @@ def test_filters_panel_holds_every_filter():
     app = _app()
     keys = {r.key for r in app.radio} | {c.key for c in app.checkbox} | {s.key for s in app.slider}
     assert {"sort", "date_posted", "workplace", "view"} <= keys
-    assert {"exp_Internship", "exp_Director", "fetch_details", "demo_mode"} <= keys
+    assert {"exp_Internship", "exp_Director", "detect_workplace", "demo_mode"} <= keys
     assert "limit" in keys
     assert app.button(key="apply_filters").label == "Apply filters"
 
@@ -97,20 +97,19 @@ def test_searching_puts_the_title_at_the_top_of_the_suggestions():
     assert app.selectbox(key="title").options[0] == "Chef"
 
 
-def test_fetch_full_details_puts_a_description_on_the_cards():
-    app = _app()
-    app.checkbox(key="fetch_details").set_value(True).run()
-    app = _search(app)
-
-    html = _html(app)
+def test_every_result_arrives_with_its_full_details():
+    # Enrichment is unconditional — there is no toggle for it.
+    html = _html(_search(_app()))
     assert '<p class="mz-desc">' in html
-    # And the strip fills out, because employment type comes from the same place.
+    # The strip fills out too, since employment type comes from the same page.
     assert "Full-time" in html or "Contract" in html
 
 
-def test_without_enrichment_cards_carry_no_description():
-    html = _html(_search(_app()))
-    assert '<p class="mz-desc">' not in html
+def test_the_filters_panel_no_longer_offers_a_details_toggle():
+    app = _app()
+    keys = {c.key for c in app.checkbox} | {s.key for s in app.slider}
+    assert "fetch_details" not in keys
+    assert "detail_count" not in keys
 
 
 def test_workplace_filter_labels_the_cards():
@@ -224,8 +223,11 @@ def test_workplace_select_all_sends_no_workplace_filter():
     assert app.radio(key="workplace").value == "Remote"
 
 
-def test_detail_slider_only_appears_when_enrichment_is_on():
-    app = _app()
-    assert not [s for s in app.slider if s.key == "detail_count"]
-    app.checkbox(key="fetch_details").set_value(True).run()
-    assert app.slider(key="detail_count").value is not None
+def test_descriptions_can_be_expanded_in_place():
+    app = _search(_app())
+    toggles = [b for b in app.button if b.key.startswith("desc_")]
+    assert toggles, "long postings should offer a toggle"
+
+    app = toggles[0].click().run()
+    assert '<p class="mz-desc mz-desc--full">' in _html(app)
+    assert any(b.label == "Show less" for b in app.button)
