@@ -62,31 +62,58 @@ STYLES = f"""
 [class*="st-key-topbar"] [data-testid="stHorizontalBlock"] {{ align-items: center; }}
 [class*="st-key-topbar"] [data-testid="stElementContainer"] {{ margin: 0; }}
 
+/* Streamlit sizes a markdown block to one line of text (28px), so the logo
+   overflowed it and hung below the other controls. Pin the wrapper to the
+   control height and centre the mark inside it. */
+[class*="st-key-topbar"] [data-testid="stMarkdown"],
+[class*="st-key-topbar"] [data-testid="stMarkdown"] > div,
+[class*="st-key-topbar"] [data-testid="stMarkdownContainer"] {{
+  height: 46px !important; display: flex; align-items: center;
+  /* Streamlit hangs a -16px bottom margin on this, which drags the centred
+     logo 8px below the rest of the row. */
+  margin-bottom: 0 !important;
+}}
 .mz-logo {{
-  width: 44px; height: 44px; border-radius: 14px; background: var(--mz-accent);
-  display: flex; align-items: center; justify-content: center;
+  width: 46px; height: 46px; border-radius: 14px; background: var(--mz-accent);
+  display: flex; align-items: center; justify-content: center; flex: none;
 }}
 .mz-logo span {{
   width: 14px; height: 14px; border-radius: 50%;
   border: 4px solid #fff; display: block;
 }}
 
-/* Every control in the bar is the same height and sits on the same baseline. */
+/* Every control in the bar is 46px tall on a shared baseline.
+
+   The height/background must land on the widgets' own inner elements —
+   stTextInputRootElement for a text input, the select's control div — because
+   the outer wrappers are transparent and size to their contents. Note the
+   button rule is scoped to our three buttons: a bare `button` selector also
+   catches the selectbox's chevron and stretches it. */
+[class*="st-key-topbar"] [data-testid="stTextInputRootElement"],
+[class*="st-key-topbar"] [data-testid="stSelectbox"] > div > div,
 [class*="st-key-topbar"] [data-baseweb="base-input"],
-[class*="st-key-topbar"] [data-baseweb="input"],
 [class*="st-key-topbar"] [data-baseweb="select"] > div,
-[class*="st-key-topbar"] button {{
+[class*="st-key-topbar"] [data-testid="stPopoverButton"],
+[class*="st-key-search"] button,
+[class*="st-key-saved_toggle"] button {{
   height: 46px !important; min-height: 46px !important;
   border-radius: 7px !important; box-shadow: none !important;
 }}
+[class*="st-key-topbar"] [data-testid="stTextInputRootElement"],
+[class*="st-key-topbar"] [data-testid="stSelectbox"] > div > div,
 [class*="st-key-topbar"] [data-baseweb="base-input"],
-[class*="st-key-topbar"] [data-baseweb="input"],
 [class*="st-key-topbar"] [data-baseweb="select"] > div {{
   border: 1px solid var(--mz-line) !important; background: #fff !important;
   font-size: .95rem;
 }}
-[class*="st-key-topbar"] input {{ background: transparent !important; font-size: .95rem; }}
+[class*="st-key-topbar"] input {{
+  height: 44px !important; background: transparent !important; font-size: .95rem;
+}}
 [class*="st-key-topbar"] input::placeholder {{ color: #A9B2BC; }}
+/* The select's own dropdown arrow must keep its natural size. */
+[class*="st-key-topbar"] [data-testid="stSelectbox"] button {{
+  height: auto !important; min-height: 0 !important;
+}}
 
 /* SEARCH + APPLY FILTERS */
 [class*="st-key-search"] button, [class*="st-key-apply_filters"] button {{
@@ -127,12 +154,17 @@ STYLES = f"""
 
 .mz-fgroup {{
   font-weight: 700; font-size: .95rem; color: var(--mz-ink);
-  margin: 1.1rem 0 .45rem;
+  margin: 1.35rem 0 .75rem;
 }}
 .mz-fgroup:first-child {{ margin-top: 0; }}
-.mz-fgroup::after {{
-  content: ""; display: block; width: 34px; height: 2px;
-  background: #D8DEE4; margin-top: .45rem;
+/* Drawn as a background stripe rather than an ::after block: a pseudo-element
+   here escaped the paragraph's box and overlapped the option beneath it. */
+.mz-fgroup {{
+  padding-bottom: .45rem;
+  background-image: linear-gradient(#D8DEE4, #D8DEE4);
+  background-size: 34px 2px;
+  background-position: left bottom;
+  background-repeat: no-repeat;
 }}
 [class*="st-key-apply_filters"] {{ padding-top: 1rem; }}
 [class*="st-key-apply_filters"] button {{ height: 42px; }}
