@@ -31,6 +31,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 st.markdown(theme.STYLES, unsafe_allow_html=True)
+theme.hide_cloud_badge()
 
 WORKPLACE_CHOICES = ["Select all", *filters.WORKPLACE_TYPES]
 

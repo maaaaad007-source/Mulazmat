@@ -40,12 +40,16 @@ STYLES = f"""
    real class names carry a build hash, so match on the stable prefix rather
    than the whole thing. */
 [data-testid="manage-app-button"],
+[class*="_manageAppButton"],
 [class*="_profileContainer"],
 [class*="_viewerBadge"],
 [class*="viewerBadge_container"],
 [class*="_terminalButton"],
 #MainMenu,
 footer {{ display: none !important; }}
+/* The badge-hiding component is a zero-height iframe; keep it out of the flow. */
+[data-testid="stIFrame"][height="0"],
+iframe[height="0"] {{ display: none !important; }}
 /* Streamlit's header floats over the top-right of the page and swallows clicks
    meant for the Filters button. The design supplies its own bar, so drop it.
    Delete this rule to get the hamburger/Deploy menu back. */
@@ -303,6 +307,59 @@ footer {{ display: none !important; }}
 """
 
 LOGO = '<div class="mz-logo"><span></span></div>'
+
+def hide_cloud_badge() -> None:
+    """Remove Streamlit Community Cloud's floating "Manage app" control.
+
+    CSS alone is not enough: the badge's class names carry a build hash that
+    changes between deploys, so any selector written against them rots. This
+    finds it by its visible text instead, from a zero-height component iframe
+    reaching into the parent document (same origin on *.streamlit.app), and
+    keeps watching because the cloud re-inserts it after navigation.
+
+    Note the badge is only shown to the app's owner while signed in — other
+    visitors never see it in the first place.
+    """
+    import streamlit.components.v1 as components
+
+    components.html(
+        """
+        <script>
+        const LABELS = ["manage app", "manage this app"];
+
+        function hideBadge() {
+          const doc = window.parent && window.parent.document;
+          if (!doc) return;
+
+          doc.querySelectorAll(
+            '[data-testid="manage-app-button"], [class*="_profileContainer"],' +
+            '[class*="_viewerBadge"], [class*="viewerBadge_container"],' +
+            '[class*="_terminalButton"], [class*="_manageAppButton"]'
+          ).forEach((el) => { el.style.display = "none"; });
+
+          // Whatever the classes are called this week, the text is the same.
+          doc.querySelectorAll("a, button, span, div").forEach((el) => {
+            if (el.children.length) return;
+            const text = (el.textContent || "").trim().toLowerCase();
+            if (!LABELS.includes(text)) return;
+            const box = el.closest("div, a, button");
+            if (box) box.style.display = "none";
+          });
+        }
+
+        hideBadge();
+        // The cloud re-inserts the badge, so keep an eye on it.
+        try {
+          new MutationObserver(hideBadge).observe(
+            window.parent.document.body, { childList: true, subtree: true }
+          );
+        } catch (err) { /* different origin: the CSS rules still apply */ }
+        setInterval(hideBadge, 1000);
+        </script>
+        """,
+        height=0,
+    )
+
 
 #: Shown before the first search, in place of a wall of explanatory text.
 IDLE_GIF_URL = (
