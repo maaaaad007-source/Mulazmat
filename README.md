@@ -123,23 +123,28 @@ concurrency.** An earlier version fired eight requests at once with no gap and
 was rate limited on its first search. The delay is the safe dial; parallelism
 is not.
 
-## Restore point
+## Restore points
 
-`known-good-v1-backup` is a branch pinned to this version — search, cards,
-saved jobs, autocomplete, CSV export, 89 tests passing. If a later change
-breaks something, that branch is the way back:
+Each is a branch pinned to a version that was working. If a later change breaks
+something, these are the way back:
+
+| Branch | What it is |
+| --- | --- |
+| `known-good-v2-backup` | **Latest.** Everything below, plus local re-arranging on Apply filters, the gif idle state, the "oolazim" tab title and the hidden Manage app badge. 124 tests. |
+| `known-good-v1-backup` | The version before the speed and rate-limit work: sequential fetching, filters that re-search. 89 tests. |
 
 ```bash
-# look at it without changing anything
-git checkout known-good-v1-backup
+# look at one without changing anything
+git checkout known-good-v2-backup
 
 # or reset your working branch to it, discarding what came after
 git checkout <your-branch>
-git reset --hard known-good-v1-backup
+git reset --hard known-good-v2-backup
 ```
 
-Leave that branch alone — its only job is to keep pointing here. Cut a new
-one (`known-good-v2` …) when there is a newer version worth trusting.
+Leave these branches alone — their only job is to keep pointing where they
+point. Cut a new one (`known-good-v3-backup` …) when there is a newer version
+worth trusting.
 
 ## How it gets the jobs — and the honest caveats
 
