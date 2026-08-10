@@ -39,6 +39,59 @@ DETAIL_PAGE = """
 """
 
 
+JSON_LD_REMOTE = """
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"JobPosting","title":"Product Designer",
+ "employmentType":"FULL_TIME","jobLocationType":"TELECOMMUTE",
+ "hiringOrganization":{"@type":"Organization","name":"Ordnary"}}
+</script>
+<div class="description__text">Design products people use daily.</div>
+"""
+
+JSON_LD_ONSITE = """
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"JobPosting","employmentType":"PART_TIME"}
+</script>
+"""
+
+
+def test_remote_postings_are_detected_from_json_ld():
+    # The visible criteria list has no workplace row; TELECOMMUTE is the only
+    # place a posting actually says it is remote.
+    details = parse_job_details(JSON_LD_REMOTE)
+    assert details["workplace"] == "Remote"
+    assert details["employment_type"] == "Full-time"
+    assert details["description"] == "Design products people use daily."
+
+
+def test_json_ld_without_telecommute_claims_no_workplace():
+    details = parse_job_details(JSON_LD_ONSITE)
+    assert "workplace" not in details
+    assert details["employment_type"] == "Part-time"
+
+
+def test_the_visible_criteria_list_wins_over_json_ld():
+    details = parse_job_details(JSON_LD_ONSITE + DETAIL_PAGE)
+    assert details["employment_type"] == "Full-time"
+
+
+def test_malformed_json_ld_is_skipped_rather_than_raising():
+    html = '<script type="application/ld+json">{not json at all</script>' + DETAIL_PAGE
+    assert parse_job_details(html)["seniority"] == "Entry level"
+
+
+def test_json_ld_arrays_are_handled():
+    html = """
+    <script type="application/ld+json">
+    [{"@type":"WebSite"},{"@type":"JobPosting","jobLocationType":"TELECOMMUTE",
+      "employmentType":["CONTRACTOR"]}]
+    </script>
+    """
+    details = parse_job_details(html)
+    assert details["workplace"] == "Remote"
+    assert details["employment_type"] == "Contract"
+
+
 def test_parses_description_and_collapses_whitespace():
     details = parse_job_details(DETAIL_PAGE)
     assert details["description"].startswith("We are hiring a Data Analyst.")

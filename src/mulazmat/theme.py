@@ -158,18 +158,11 @@ STYLES = f"""
 /* Note `p.mz-fgroup`, not `.mz-fgroup`: Streamlit resets paragraph margins
    through `[data-testid="stMarkdownContainer"] p`, which outranks a bare class
    and left every group heading with the same 5px gap as the options under it.
-
-   The underline is a background stripe rather than an ::after block, because a
-   pseudo-element here escaped the paragraph's box and overlapped the option
-   beneath it. */
+   The padding stays after dropping the underline so the spacing is unchanged. */
 [data-testid="stPopoverBody"] p.mz-fgroup {{
   font-weight: 700; font-size: .95rem; color: var(--mz-ink);
   margin: 1.5rem 0 .6rem !important;
   padding-bottom: .45rem;
-  background-image: linear-gradient(#D8DEE4, #D8DEE4);
-  background-size: 34px 2px;
-  background-position: left bottom;
-  background-repeat: no-repeat;
 }}
 /* Only the panel's very first heading needs no space above it. */
 [data-testid="stPopoverBody"] [data-testid="stElementContainer"]:first-child p.mz-fgroup {{

@@ -21,6 +21,7 @@ official job-board API if you need reliable bulk access.
 from __future__ import annotations
 
 import dataclasses
+import json
 import random
 import re
 import time
@@ -143,6 +144,7 @@ def parse_jobs_html(html: str) -> list[Job]:
                 title=title,
                 company=_text(company_node),
                 location=_text(card.select_one("span.job-search-card__location")),
+                workplace=_text(card.select_one("span.job-search-card__workplace-type")),
                 url=url,
                 posted_at=(time_node.get("datetime") if time_node else "") or "",
                 posted_label=_text(time_node),
@@ -160,6 +162,20 @@ _CRITERIA_FIELDS = {
     "employment type": "employment_type",
     "job function": "job_function",
     "industries": "industries",
+    # Rarely present, but free to read when it is.
+    "workplace type": "workplace",
+    "remote": "workplace",
+}
+
+#: schema.org employmentType codes -> the wording LinkedIn shows.
+_EMPLOYMENT_TYPES = {
+    "FULL_TIME": "Full-time",
+    "PART_TIME": "Part-time",
+    "CONTRACTOR": "Contract",
+    "TEMPORARY": "Temporary",
+    "INTERN": "Internship",
+    "VOLUNTEER": "Volunteer",
+    "OTHER": "Other",
 }
 
 _APPLY_URL_RE = re.compile(r"https?://[^\"'\s<>]+")
@@ -171,6 +187,48 @@ def _clean(text: str, limit: int = 600) -> str:
     if len(text) <= limit:
         return text
     return text[:limit].rsplit(" ", 1)[0] + "…"
+
+
+def parse_json_ld(soup: BeautifulSoup) -> dict[str, str]:
+    """Read the schema.org JobPosting block LinkedIn embeds on job pages.
+
+    This is the only place a posting reliably states that it is remote —
+    ``jobLocationType: "TELECOMMUTE"`` — since the visible criteria list has no
+    workplace row. Anything unparseable is skipped rather than guessed at.
+    """
+    found: dict[str, str] = {}
+
+    for script in soup.select('script[type="application/ld+json"]'):
+        try:
+            data = json.loads(script.string or "")
+        except (TypeError, ValueError):
+            continue
+
+        # A page can ship several blocks, or one block holding a list/@graph —
+        # pick the JobPosting rather than whichever entry happens to be first.
+        if isinstance(data, dict) and isinstance(data.get("@graph"), list):
+            data = data["@graph"]
+        if isinstance(data, list):
+            entries = [item for item in data if isinstance(item, dict)]
+            data = next(
+                (item for item in entries if str(item.get("@type", "")) == "JobPosting"),
+                entries[0] if entries else None,
+            )
+        if not isinstance(data, dict):
+            continue
+
+        if str(data.get("jobLocationType", "")).upper() == "TELECOMMUTE":
+            found["workplace"] = "Remote"
+
+        employment = data.get("employmentType")
+        if isinstance(employment, list):
+            employment = employment[0] if employment else None
+        if isinstance(employment, str):
+            label = _EMPLOYMENT_TYPES.get(employment.strip().upper().replace("-", "_"))
+            if label:
+                found["employment_type"] = label
+
+    return found
 
 
 def parse_job_details(html: str) -> dict[str, str]:
@@ -188,6 +246,9 @@ def parse_job_details(html: str) -> dict[str, str]:
 
     soup = BeautifulSoup(html, "html.parser")
     details: dict[str, str] = {}
+
+    # Read this first so the visible page can override it where both exist.
+    details.update(parse_json_ld(soup))
 
     body = soup.select_one("div.description__text, div.show-more-less-html__markup")
     if body:

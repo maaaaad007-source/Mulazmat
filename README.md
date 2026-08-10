@@ -155,7 +155,17 @@ the box accepts anything you type either way.
 
 ### Where the workplace label comes from
 
-LinkedIn does not put a workplace type on a search card, so a card only says
-"Remote" or "Hybrid" when the posting's own location text says so — or when you
-filtered by workplace, in which case every result is of that kind by definition
-and the cards are labelled accordingly. It is never guessed from anything else.
+LinkedIn puts no workplace type on a search card, so a card can only say
+"Remote"/"Hybrid" when something authoritative does. In order of preference:
+
+1. **The posting's schema.org block.** Job pages embed a `JobPosting` JSON-LD
+   record, and `jobLocationType: "TELECOMMUTE"` is the one place a posting
+   states it is remote. Read only when **Fetch full details** is on, since it
+   lives on the individual job page.
+2. **Your workplace filter.** Filtering to Remote means every result is remote
+   by definition, so the cards are labelled accordingly.
+3. **The location text**, when it literally says Remote or Hybrid.
+
+Worth knowing: schema.org has no "on-site" or "hybrid" value — only the remote
+flag — so non-remote postings usually leave the slot blank rather than claim
+something LinkedIn never said.
