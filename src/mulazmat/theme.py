@@ -114,6 +114,9 @@ STYLES = f"""
 [class*="st-key-topbar"] [data-testid="stSelectbox"] button {{
   height: auto !important; min-height: 0 !important;
 }}
+/* Job title is a combobox so it can suggest titles, but it should still read
+   as the plain search box the design calls for — no dropdown arrow. */
+[class*="st-key-title"] [data-testid="stSelectbox"] button {{ display: none; }}
 
 /* SEARCH + APPLY FILTERS */
 [class*="st-key-search"] button, [class*="st-key-apply_filters"] button {{

@@ -37,7 +37,7 @@ to bring the hamburger menu back.
 
 | Field | Notes |
 | --- | --- |
-| **Job title** | Required. This is what LinkedIn actually searches on. |
+| **Job title** | Required. This is what LinkedIn actually searches on. Suggests common titles as you type, and remembers your last 8 searches at the top of the list — but accepts any text, so unusual titles are typed as normal. |
 | **Company** | Optional. Applied to results *after* they arrive, so editing it re-filters instantly without a new search. |
 | **Country** | All 195 countries, alphabetical; the selectbox filters as you type. Leave it blank to search everywhere. |
 | Date posted | Any time / 24 hours / week / month. |
@@ -112,6 +112,7 @@ in use and lets you override it if results for your country look wrong.
 app.py                      Streamlit UI
 src/mulazmat/
   cards.py                  Card markup (escaped) + the results grid
+  job_titles.py             Autocomplete suggestions for the search box
   theme.py                  The stylesheet: top bar, filters panel, cards
   countries.py              Country list, geoId hints, location strings
   filters.py                Date/experience/job-type/workplace vocabularies
@@ -128,11 +129,11 @@ pip install pytest
 pytest
 ```
 
-47 tests: HTML parsing against pinned real-world search and job-detail
+61 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), and end-to-end runs that drive the
-actual Streamlit app through `AppTest` — the top bar, the filters panel, saving
-and unsaving jobs, and the saved-only view.
+actual Streamlit app through `AppTest` — the top bar, the filters panel, title
+suggestions, saving and unsaving jobs, and the saved-only view.
 
 Note that the test suite deliberately makes **no network calls** — the live
 endpoint is exercised by running the app, not by CI.
@@ -143,3 +144,10 @@ The design this UI follows showed counts beside each date and experience option
 (`Past 24 hours (3,458)`). LinkedIn's guest endpoint returns no facet counts, and
 there is no way to derive them without running a separate search per option, so
 the options are unnumbered rather than numbered with invented figures.
+
+### Job-title suggestions
+
+The suggestion list in `src/mulazmat/job_titles.py` is local, not fetched.
+LinkedIn's typeahead is not a public API, and a lookup per keystroke would be
+slow and another way to earn a rate limit. Add or remove entries there freely —
+the box accepts anything you type either way.

@@ -16,7 +16,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from mulazmat import countries, filters, theme  # noqa: E402
+from mulazmat import countries, filters, job_titles, theme  # noqa: E402
 from mulazmat.cards import render_grid  # noqa: E402
 from mulazmat.linkedin import LinkedInClient, LinkedInError  # noqa: E402
 from mulazmat.models import Job, SearchQuery  # noqa: E402
@@ -146,8 +146,20 @@ def _topbar() -> bool:
         )
 
         logo.markdown(theme.LOGO, unsafe_allow_html=True)
-        title.text_input(
-            "Job title", key="title", placeholder="Job Title", label_visibility="collapsed"
+        # A combobox rather than a text input: it suggests common titles as you
+        # type, but ``accept_new_options`` means anything else can still be
+        # typed straight in.
+        title.selectbox(
+            "Job title",
+            options=job_titles.suggestions(
+                st.session_state.get("recent_titles", ()),
+                current=st.session_state.get("title"),
+            ),
+            key="title",
+            index=None,
+            accept_new_options=True,
+            placeholder="Job Title",
+            label_visibility="collapsed",
         )
         company.text_input(
             "Company", key="company", placeholder="Company (Optional)", label_visibility="collapsed"
@@ -199,7 +211,7 @@ def _query_from_state() -> SearchQuery:
     experience = [label for label in filters.EXPERIENCE_LEVELS if state.get(f"exp_{label}")]
 
     return SearchQuery(
-        keywords=state.get("title", ""),
+        keywords=state.get("title") or "",
         location=countries.location_string(country or countries.ANYWHERE),
         geo_id=(state.get("geo_id") or "").strip(),
         company=state.get("company", ""),
@@ -304,6 +316,9 @@ if run:
         else:
             st.session_state["results"] = raw
             st.session_state["demo"] = st.session_state.get("demo_mode", False)
+            st.session_state["recent_titles"] = job_titles.remember(
+                st.session_state.get("recent_titles", ()), query.keywords
+            )
 
 if "results" in st.session_state:
     if st.session_state.get("demo"):

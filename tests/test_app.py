@@ -15,8 +15,8 @@ def _app() -> AppTest:
     return AppTest.from_file(APP, default_timeout=30).run()
 
 
-def _search(app: AppTest, title: str = "Senior UX Designer", view: str = "Cards") -> AppTest:
-    app.text_input(key="title").set_value(title)
+def _search(app: AppTest, title: str = "UX Designer", view: str = "Cards") -> AppTest:
+    app.selectbox(key="title").set_value(title)
     app.checkbox(key="demo_mode").set_value(True)
     app.radio(key="view").set_value(view)
     return app.button(key="search").click().run()
@@ -41,7 +41,7 @@ def test_search_without_a_title_is_rejected():
 
 def test_topbar_carries_title_company_country_search_and_saved():
     app = _app()
-    assert app.text_input(key="title").placeholder == "Job Title"
+    assert app.selectbox(key="title").placeholder == "Job Title"
     assert app.text_input(key="company").placeholder == "Company (Optional)"
     assert app.selectbox(key="country").value is None  # placeholder state
     assert app.button(key="search").label == "Search"
@@ -66,9 +66,35 @@ def test_demo_search_renders_cards_with_contact_links():
     assert "Job Results" in html
     assert '<p class="mz-title">' in html
     assert "Contact &amp; apply" in html
-    assert "Senior UX Designer" in html
+    assert "UX Designer" in html
     # One save button per card.
     assert len([b for b in app.button if b.key.startswith("save_")]) > 0
+
+
+def test_title_box_suggests_common_titles():
+    box = _app().selectbox(key="title")
+    assert "UX Designer" in box.options
+    assert "Data Analyst" in box.options
+    assert len(box.options) > 150
+
+
+def test_a_hand_typed_title_survives_the_rerun():
+    # AppTest cannot type into a combobox, so the value is seeded the way
+    # Streamlit delivers it — the point is that it stays put and is searchable.
+    app = AppTest.from_file(APP, default_timeout=30)
+    app.session_state["title"] = "Underwater Basket Weaver"
+    app.session_state["demo_mode"] = True
+    app = app.run()
+
+    assert app.selectbox(key="title").value == "Underwater Basket Weaver"
+    app = app.button(key="search").click().run()
+    assert "Underwater Basket Weaver" in _html(app)
+
+
+def test_searching_puts_the_title_at_the_top_of_the_suggestions():
+    app = _search(_app(), title="Chef")
+    assert app.session_state["recent_titles"] == ("Chef",)
+    assert app.selectbox(key="title").options[0] == "Chef"
 
 
 def test_country_selection_seeds_the_geo_id():
