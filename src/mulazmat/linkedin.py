@@ -216,6 +216,48 @@ def _clean(text: str, limit: int = 600) -> str:
     return text[:limit].rsplit(" ", 1)[0] + "…"
 
 
+#: Containers LinkedIn has used for the "meet the hiring team" block. The
+#: guest page usually omits it entirely — it is mostly a logged-in feature — so
+#: this casts a wide net and simply finds nothing when there is nothing.
+_HIRER_CONTAINERS = (
+    "div.message-the-recruiter",
+    "section.message-the-recruiter",
+    "div.job-details-jobs-unified-top-card__hiring-team",
+    "div.hirer-card",
+    "[data-testid='hirer-card']",
+)
+
+
+def _parse_hirer(soup: BeautifulSoup) -> dict[str, str]:
+    """The named person who posted the job, when the page shows one.
+
+    Name, headline and public profile link only. LinkedIn publishes no email or
+    phone number for them, and none is inferred here.
+    """
+    for selector in _HIRER_CONTAINERS:
+        block = soup.select_one(selector)
+        if not block:
+            continue
+
+        profile = block.select_one("a[href*='/in/']")
+        name = _text(block.select_one("h3, h4, .base-main-card__title, .hirer-card__hirer-job-title"))
+        # Some layouts put the name only in the profile link's text.
+        if not name and profile:
+            name = _text(profile)
+        if not name:
+            continue
+
+        found = {"poster_name": name}
+        title = _text(block.select_one("h4, .base-main-card__subtitle, .hirer-card__hirer-headline"))
+        if title and title != name:
+            found["poster_title"] = title
+        if profile:
+            found["poster_profile"] = (profile.get("href") or "").split("?", 1)[0]
+        return found
+
+    return {}
+
+
 def parse_json_ld(soup: BeautifulSoup) -> dict[str, str]:
     """Read the schema.org JobPosting block LinkedIn embeds on job pages.
 
@@ -312,19 +354,7 @@ def parse_job_details(html: str) -> dict[str, str]:
         if match:
             details["apply_url"] = match.group(0).replace("&amp;", "&")
 
-    # Some postings name the person who posted them. We surface their public
-    # profile link only — never a scraped email or phone number.
-    recruiter = soup.select_one("div.message-the-recruiter, section.message-the-recruiter")
-    if recruiter:
-        name = _text(recruiter.select_one("h3, .base-main-card__title"))
-        if name:
-            details["poster_name"] = name
-            details["poster_title"] = _text(
-                recruiter.select_one("h4, .base-main-card__subtitle")
-            )
-            profile = recruiter.select_one("a[href*='/in/']")
-            if profile:
-                details["poster_profile"] = (profile.get("href") or "").split("?", 1)[0]
+    details.update(_parse_hirer(soup))
 
     return details
 

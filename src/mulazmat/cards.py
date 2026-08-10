@@ -130,11 +130,17 @@ def contact_html(job: Job) -> str:
     return "".join(parts)
 
 
-def upper_html(job: Job, description: bool = True) -> str:
-    """Everything above the expander: logo, title, meta strip, snippet."""
+def upper_html(job: Job, description: bool = True, expanded: bool = False) -> str:
+    """Everything above the toggle: logo, title, meta strip, description.
+
+    ``expanded`` swaps the snippet for the whole posting in place, rather than
+    repeating the snippet with the full text underneath it.
+    """
     body = [title_html(job), meta_row_html(job)]
     if description and job.description:
-        body.append(f'<p class="mz-desc">{escape(snippet(job))}</p>')
+        text = job.description.strip() if expanded else snippet(job)
+        css = "mz-desc mz-desc--full" if expanded else "mz-desc"
+        body.append(f'<p class="{css}">{escape(text)}</p>')
     return "".join(body)
 
 
@@ -160,14 +166,26 @@ def has_more(job: Job) -> bool:
     return len(job.description.strip()) > SNIPPET_CHARS
 
 
+def _toggle_expanded(job_id: str) -> None:
+    """Flip a card between snippet and full description.
+
+    Runs as a button callback so the change lands before the script re-runs —
+    toggling inside the run would leave the description already rendered from
+    the previous state.
+    """
+    expanded: set[str] = st.session_state.setdefault("expanded", set())
+    expanded.symmetric_difference_update({job_id})
+
+
 def render_grid(jobs: list[Job], saved: set[str], columns: int = 2) -> str | None:
     """Draw the cards two-up and return the id of any save button clicked.
 
-    The heart has to be a real Streamlit button (HTML cannot call back into
-    Python), so each card is a keyed container with the button floated into its
-    top-right corner by CSS.
+    The save control has to be a real Streamlit button (HTML cannot call back
+    into Python), so each card is a keyed container with the button floated into
+    its top-right corner by CSS.
     """
     clicked: str | None = None
+    expanded: set[str] = st.session_state.setdefault("expanded", set())
 
     for row_start in range(0, len(jobs), columns):
         row = jobs[row_start : row_start + columns]
@@ -182,18 +200,20 @@ def render_grid(jobs: list[Job], saved: set[str], columns: int = 2) -> str | Non
                     type="primary" if is_saved else "secondary",
                 ):
                     clicked = job.job_id
-                # Rendered in two halves so the expander can sit with the
+                # Rendered in two halves so the toggle can sit with the
                 # description rather than below the Apply buttons.
-                st.markdown(upper_html(job), unsafe_allow_html=True)
+                is_open = job.job_id in expanded
+                st.markdown(upper_html(job, expanded=is_open), unsafe_allow_html=True)
 
-                # The full posting, without a trip to LinkedIn. Only offered
-                # when there is more text than the snippet already shows.
+                # The whole posting in place, without a trip to LinkedIn. Only
+                # offered when there is more than the snippet already shows.
                 if has_more(job):
-                    with st.expander("Read full description"):
-                        st.markdown(
-                            f'<div class="mz-full">{escape(job.description)}</div>',
-                            unsafe_allow_html=True,
-                        )
+                    st.button(
+                        "Show less" if is_open else "Read full description",
+                        key=f"desc_{job.job_id or row_start}",
+                        on_click=_toggle_expanded,
+                        args=(job.job_id,),
+                    )
 
                 st.markdown(contact_html(job), unsafe_allow_html=True)
 

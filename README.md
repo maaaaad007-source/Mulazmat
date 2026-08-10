@@ -28,8 +28,8 @@ Results are a two-up grid of cards: company logo, title, company, location, a
 workplace / job-type / age strip, and the **Contact & apply** footer. Logos come
 off the search results themselves, so they cost no extra requests; companies
 without one get a monogram. Postings with more description than a card shows get
-a **Read full description** expander, so you can read the whole posting without
-opening LinkedIn. Each card has a bookmark to save it; saved jobs live in the session, so they clear when
+a **Read full description** toggle, which swaps the snippet for the whole
+posting in place so you can read it without opening LinkedIn. Each card has a bookmark to save it; saved jobs live in the session, so they clear when
 the browser tab is closed. **Apply filters** closes the panel.
 
 Streamlit's own header is hidden so it cannot sit on top of the **Filters**
@@ -71,9 +71,12 @@ published routes to a human:
 - **Apply** — the employer's own application URL when the posting has one
   (LinkedIn hides it in the page source), otherwise the LinkedIn posting.
 - **Company page** — the company's LinkedIn page.
-- **Profile** — when a posting names the person who posted it, a link to their
-  public profile. Name and headline only; nothing is scraped beyond what
-  LinkedIn shows publicly.
+- **Posted by** — when a posting names the person who posted it, their name,
+  headline and a link to their public profile. Note LinkedIn mostly shows its
+  "meet the hiring team" block to signed-in visitors, so on a guest page it is
+  frequently absent; several layouts are checked, and nothing is invented when
+  none of them is there. Name and headline only — no email or phone number,
+  because LinkedIn publishes none.
 - **On LinkedIn** — the original posting, kept alongside an external apply link.
 
 Cards say "No public contact links on this posting" when a posting genuinely has
@@ -134,7 +137,7 @@ pip install pytest
 pytest
 ```
 
-85 tests: HTML parsing against pinned real-world search and job-detail
+89 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), and end-to-end runs that drive the
 actual Streamlit app through `AppTest` — the top bar, the filters panel, title

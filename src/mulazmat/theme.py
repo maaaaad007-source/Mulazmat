@@ -209,24 +209,18 @@ STYLES = f"""
   font-weight: 700; font-size: 1.3rem; color: var(--mz-muted);
 }}
 
-/* Full-description expander inside a card. */
-[class*="st-key-card_"] [data-testid="stExpander"] {{ border: none; margin-top: -.2rem; }}
-[class*="st-key-card_"] [data-testid="stExpander"] summary {{
-  padding: 0 0 .55rem !important; font-size: .78rem; font-weight: 600;
-  letter-spacing: .08em; text-transform: uppercase; color: var(--mz-accent);
-  background: transparent !important; box-shadow: none !important;
+/* The description toggle: a plain text link, not a button. */
+[class*="st-key-desc_"] button {{
+  border: none !important; background: transparent !important; box-shadow: none !important;
+  padding: 0 !important; min-height: 0 !important; height: auto !important;
+  color: var(--mz-accent) !important; font-size: .76rem; font-weight: 600;
+  letter-spacing: .09em; text-transform: uppercase;
 }}
-[class*="st-key-card_"] [data-testid="stExpander"] summary:hover {{
-  background: transparent !important; color: var(--mz-accent-dark);
-}}
-[class*="st-key-card_"] [data-testid="stExpander"] summary svg {{ fill: var(--mz-accent); }}
-[class*="st-key-card_"] [data-testid="stExpander"] details {{
-  border: none !important; background: transparent !important;
-}}
-.mz-full {{
-  font-size: .86rem; line-height: 1.6; color: #5C6874;
-  max-height: 22rem; overflow-y: auto; padding-right: .4rem; margin-bottom: .6rem;
-}}
+[class*="st-key-desc_"] button:hover {{ color: var(--mz-accent-dark) !important; }}
+[class*="st-key-desc_"] {{ margin: -.35rem 0 .9rem; }}
+
+/* Expanded in place — the snippet is replaced, never repeated. */
+.mz-desc--full {{ max-height: 26rem; overflow-y: auto; padding-right: .5rem; }}
 
 .mz-title {{
   font-size: 1.15rem; font-weight: 700; line-height: 1.35;

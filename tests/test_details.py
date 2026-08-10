@@ -161,3 +161,41 @@ def test_linkedin_expander_labels_are_stripped_from_the_text():
     </section></div>
     """
     assert parse_job_details(html)["description"] == "We build tools for teams."
+
+
+HIRER_MODERN = """
+<div class="job-details-jobs-unified-top-card__hiring-team">
+  <a href="https://www.linkedin.com/in/lotte-jansen?trk=public_jobs">Lotte Jansen</a>
+  <div class="hirer-card__hirer-headline">Recruiter at Sequel</div>
+</div>
+"""
+
+HIRER_LINK_ONLY = """
+<div class="hirer-card">
+  <a href="https://www.linkedin.com/in/sam-okafor">Sam Okafor</a>
+</div>
+"""
+
+
+def test_hiring_contact_is_read_from_the_modern_layout():
+    details = parse_job_details(HIRER_MODERN)
+    assert details["poster_name"] == "Lotte Jansen"
+    assert details["poster_profile"] == "https://www.linkedin.com/in/lotte-jansen"
+
+
+def test_hiring_contact_falls_back_to_the_profile_links_own_text():
+    details = parse_job_details(HIRER_LINK_ONLY)
+    assert details["poster_name"] == "Sam Okafor"
+    assert details["poster_profile"] == "https://www.linkedin.com/in/sam-okafor"
+    assert "poster_title" not in details
+
+
+def test_no_hiring_block_means_no_contact_person():
+    assert "poster_name" not in parse_job_details(JSON_LD_REMOTE)
+
+
+def test_the_headline_is_not_repeated_as_the_name():
+    html = '<div class="hirer-card"><h3>Ada Lovelace</h3><h4>Ada Lovelace</h4></div>'
+    details = parse_job_details(html)
+    assert details["poster_name"] == "Ada Lovelace"
+    assert "poster_title" not in details
