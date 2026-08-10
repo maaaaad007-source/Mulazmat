@@ -26,11 +26,28 @@ def _html(app: AppTest) -> str:
     return "".join(md.value for md in app.markdown)
 
 
-def test_app_starts_with_the_intro_and_no_sidebar_widgets():
+def test_the_idle_state_is_a_gif_not_a_wall_of_text():
     app = _app()
     assert not app.exception
-    assert "Search LinkedIn job postings" in _html(app)
+
+    html = _html(app)
+    assert 'class="mz-idle"' in html
+    assert "giphy.com" in html
+    assert "Search LinkedIn job postings" not in html
     assert not app.sidebar.text_input, "the layout must not use a sidebar"
+
+
+def test_the_gif_gives_way_to_results():
+    html = _html(_search(_app()))
+    assert 'class="mz-idle"' not in html
+    assert "Job Results" in html
+
+
+def test_streamlit_clouds_manage_app_badge_is_hidden():
+    from mulazmat import theme
+
+    assert '[data-testid="manage-app-button"]' in theme.STYLES
+    assert '[class*="_profileContainer"]' in theme.STYLES
 
 
 def test_the_browser_tab_is_named_oolazim():

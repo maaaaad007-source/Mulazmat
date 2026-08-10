@@ -379,24 +379,4 @@ if "results" in st.session_state:
         arrange(jobs, query, st.session_state.get("limit", 100)), query, fetched=len(jobs)
     )
 else:
-    st.markdown(
-        """
-        #### Search LinkedIn job postings
-
-        Enter a **job title**, optionally a **company** and a **country**, then press
-        **Search**. Everything else — sort, date posted, workplace, experience level,
-        card or table view — lives behind **Filters**.
-
-        Use the bookmark on any card to save it, and the bookmark in the bar to
-        show only saved jobs.
-
-        LinkedIn publishes no recruiter emails or phone numbers on job postings, so
-        neither does this app. **Contact & apply** links the real apply page, the
-        company's LinkedIn page, and — when a posting names one — the public profile
-        of whoever posted it.
-
-        LinkedIn has no public jobs API, so this reads the same endpoint its
-        logged-out jobs page uses. It is rate limited: keep searches modest, and
-        expect the occasional "slow down" message.
-        """
-    )
+    st.markdown(theme.IDLE_GIF, unsafe_allow_html=True)

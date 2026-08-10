@@ -36,6 +36,16 @@ STYLES = f"""
 
 /* ---- Chrome we do not want -------------------------------------------- */
 [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] {{ display: none !important; }}
+/* Streamlit Community Cloud's floating "Manage app" badge, bottom right. Its
+   real class names carry a build hash, so match on the stable prefix rather
+   than the whole thing. */
+[data-testid="manage-app-button"],
+[class*="_profileContainer"],
+[class*="_viewerBadge"],
+[class*="viewerBadge_container"],
+[class*="_terminalButton"],
+#MainMenu,
+footer {{ display: none !important; }}
 /* Streamlit's header floats over the top-right of the page and swallows clicks
    meant for the Filters button. The design supplies its own bar, so drop it.
    Delete this rule to get the hamburger/Deploy menu back. */
@@ -174,6 +184,15 @@ STYLES = f"""
 [class*="st-key-apply_filters"] {{ padding-top: 1rem; }}
 [class*="st-key-apply_filters"] button {{ height: 42px; }}
 
+/* ---- Idle state --------------------------------------------------------- */
+.mz-idle {{
+  display: flex; justify-content: center; align-items: center;
+  padding: 3rem 1rem 4rem;
+}}
+.mz-idle img {{
+  max-width: min(420px, 80vw); width: 100%; height: auto; border-radius: 12px;
+}}
+
 /* ---- Result cards ------------------------------------------------------ */
 .mz-count {{ font-weight: 700; font-size: 1.05rem; color: var(--mz-ink); margin: 0 0 .2rem; }}
 
@@ -284,3 +303,17 @@ STYLES = f"""
 """
 
 LOGO = '<div class="mz-logo"><span></span></div>'
+
+#: Shown before the first search, in place of a wall of explanatory text.
+IDLE_GIF_URL = (
+    "https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExZjBqdWJoYTNvajU1dGlzOXZ2"
+    "ajVzMHloeDhveW43a2JwNDRmd3JsNiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/"
+    "uBRLi3E3XCFgOwRYrH/giphy.gif"
+)
+
+IDLE_GIF = f'''
+<div class="mz-idle">
+  <img src="{IDLE_GIF_URL}" alt="" loading="lazy">
+</div>
+'''
+
