@@ -103,8 +103,12 @@ def test_card_html_assembles_every_section():
     assert "mz-contact-label" in html
 
 
-def test_cards_omit_the_description_by_default():
-    # The design keeps cards to title/company/location/meta/contact.
-    assert "mz-desc" not in card_html(FULL)
-    assert "mz-desc" in card_html(FULL, description=True)
-    assert "mz-desc" not in card_html(BARE, description=True)
+def test_description_shows_when_the_posting_has_one():
+    # Only enriched jobs carry a description, so in practice this is what
+    # "Fetch full details" adds to a card.
+    assert "mz-desc" in card_html(FULL)
+    assert "mz-desc" not in card_html(FULL, description=False)
+
+
+def test_unenriched_cards_have_no_description_block():
+    assert "mz-desc" not in card_html(BARE)

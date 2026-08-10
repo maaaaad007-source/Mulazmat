@@ -95,8 +95,12 @@ def contact_html(job: Job) -> str:
     return "".join(parts)
 
 
-def card_html(job: Job, description: bool = False) -> str:
-    """Everything on a card except the save button, which must be a widget."""
+def card_html(job: Job, description: bool = True) -> str:
+    """Everything on a card except the save button, which must be a widget.
+
+    The description only exists on jobs that went through detail enrichment, so
+    in practice it appears exactly when "Fetch full details" is on.
+    """
     body = [title_html(job), meta_row_html(job)]
     if description and job.description:
         body.append(f'<p class="mz-desc">{escape(job.description[:220])}…</p>')

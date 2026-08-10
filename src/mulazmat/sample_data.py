@@ -29,10 +29,18 @@ _COMPANIES = (
 
 _SENIORITY = ("Junior", "", "Senior", "Lead", "Principal")
 _ARRANGEMENT = ("On-site", "Hybrid", "Remote")
+#: f_WT values back to labels, so a demo search filtered to Remote does not
+#: hand back cards labelled On-site.
+_WORKPLACE_BY_CODE = {"1": "On-site", "2": "Remote", "3": "Hybrid"}
 
 
-def sample_jobs(query: SearchQuery, limit: int = 40) -> list[Job]:
-    """Deterministic fake results shaped by the user's query."""
+def sample_jobs(query: SearchQuery, limit: int = 40, enriched: bool = False) -> list[Job]:
+    """Deterministic fake results shaped by the user's query.
+
+    ``enriched`` mirrors "Fetch full details": without it the jobs carry only
+    what a real search card gives you, so demo mode shows the same sparser
+    cards a live search would.
+    """
     # Echoed back exactly as typed — .title() would turn "UX designer" into
     # "Ux Designer".
     title = query.keywords.strip() or "Software Engineer"
@@ -43,6 +51,8 @@ def sample_jobs(query: SearchQuery, limit: int = 40) -> list[Job]:
         company, location = _COMPANIES[index % len(_COMPANIES)]
         seniority = _SENIORITY[index % len(_SENIORITY)]
         arrangement = _ARRANGEMENT[index % len(_ARRANGEMENT)]
+        if len(query.workplace_types) == 1:
+            arrangement = _WORKPLACE_BY_CODE.get(query.workplace_types[0], arrangement)
         posted = today - timedelta(days=index % 21)
 
         full_title = f"{seniority} {title}".strip()
@@ -63,26 +73,31 @@ def sample_jobs(query: SearchQuery, limit: int = 40) -> list[Job]:
                 source="demo",
                 description=(
                     f"We are hiring a {full_title.lower()} to join {company}. "
-                    "You will own reporting, build dashboards, and partner with "
-                    "product and finance teams to turn messy data into decisions."
-                ),
-                workplace=arrangement,
-                seniority=("Entry level" if index % 2 else "Mid-Senior level"),
-                employment_type=("Contract" if index % 5 == 0 else "Full-time"),
-                job_function="Analyst",
-                industries="Information Technology & Services",
-                applicants=f"{(index * 7) % 90 + 5} applicants",
+                    "You will shape the work end to end, partner with teams across "
+                    "the business, and help turn a messy problem into something "
+                    "people can actually use."
+                )
+                if enriched
+                else "",
+                workplace=arrangement if enriched else "",
+                seniority=("Entry level" if index % 2 else "Mid-Senior level") if enriched else "",
+                employment_type=("Contract" if index % 5 == 0 else "Full-time") if enriched else "",
+                job_function="Analyst" if enriched else "",
+                industries="Information Technology & Services" if enriched else "",
+                applicants=f"{(index * 7) % 90 + 5} applicants" if enriched else "",
                 apply_url=(
                     f"https://careers.{company.split()[0].lower()}.example/jobs/{job_id}"
-                    if index % 3 == 0
+                    if enriched and index % 3 == 0
                     else ""
                 ),
-                poster_name=("Sofie de Vries" if index % 4 == 0 else ""),
-                poster_title=("Talent Acquisition Lead" if index % 4 == 0 else ""),
+                poster_name=("Sofie de Vries" if enriched and index % 4 == 0 else ""),
+                poster_title=("Talent Acquisition Lead" if enriched and index % 4 == 0 else ""),
                 poster_profile=(
-                    "https://www.linkedin.com/in/sofie-de-vries-demo" if index % 4 == 0 else ""
+                    "https://www.linkedin.com/in/sofie-de-vries-demo"
+                    if enriched and index % 4 == 0
+                    else ""
                 ),
-                enriched=True,
+                enriched=enriched,
             )
         )
 

@@ -155,19 +155,25 @@ STYLES = f"""
 [data-testid="stPopoverBody"] [data-testid="stCheckbox"] label {{ padding: .12rem 0; }}
 [data-testid="stPopoverBody"] [data-testid="stSlider"] {{ padding: 0 .3rem; }}
 
-.mz-fgroup {{
+/* Note `p.mz-fgroup`, not `.mz-fgroup`: Streamlit resets paragraph margins
+   through `[data-testid="stMarkdownContainer"] p`, which outranks a bare class
+   and left every group heading with the same 5px gap as the options under it.
+
+   The underline is a background stripe rather than an ::after block, because a
+   pseudo-element here escaped the paragraph's box and overlapped the option
+   beneath it. */
+[data-testid="stPopoverBody"] p.mz-fgroup {{
   font-weight: 700; font-size: .95rem; color: var(--mz-ink);
-  margin: 1.35rem 0 .75rem;
-}}
-.mz-fgroup:first-child {{ margin-top: 0; }}
-/* Drawn as a background stripe rather than an ::after block: a pseudo-element
-   here escaped the paragraph's box and overlapped the option beneath it. */
-.mz-fgroup {{
+  margin: 1.5rem 0 .6rem !important;
   padding-bottom: .45rem;
   background-image: linear-gradient(#D8DEE4, #D8DEE4);
   background-size: 34px 2px;
   background-position: left bottom;
   background-repeat: no-repeat;
+}}
+/* Only the panel's very first heading needs no space above it. */
+[data-testid="stPopoverBody"] [data-testid="stElementContainer"]:first-child p.mz-fgroup {{
+  margin-top: 0 !important;
 }}
 [class*="st-key-apply_filters"] {{ padding-top: 1rem; }}
 [class*="st-key-apply_filters"] button {{ height: 42px; }}
@@ -185,7 +191,7 @@ STYLES = f"""
 [class*="st-key-card_"] {{
   position: relative;
   border: 1px solid var(--mz-line) !important; border-radius: 10px !important;
-  padding: 1.3rem 1.4rem 1.25rem !important; background: #fff; height: 100%;
+  padding: 1.3rem 1.4rem 1.5rem !important; background: #fff; height: 100%;
 }}
 [class*="st-key-card_"]:hover {{ border-color: #CFD6DD !important; }}
 [class*="st-key-card_"] > div {{ height: 100%; }}
@@ -216,9 +222,10 @@ STYLES = f"""
   color: var(--mz-muted); margin: 0 0 .6rem;
 }}
 .mz-poster {{ font-size: .84rem; color: #667180; margin: 0 0 .55rem; }}
-.mz-desc {{ font-size: .86rem; line-height: 1.55; color: #667180; margin: 0 0 .2rem; }}
+.mz-desc {{ font-size: .86rem; line-height: 1.55; color: #667180; margin: 0 0 1rem; }}
 
-.mz-links {{ display: flex; flex-wrap: wrap; gap: .5rem; }}
+/* The gap under the buttons matches the one above "Contact & apply". */
+.mz-links {{ display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .35rem; }}
 .mz-card-link {{
   display: inline-block; padding: .5rem 1rem; border-radius: 5px;
   border: 1px solid var(--mz-accent); color: var(--mz-accent) !important;

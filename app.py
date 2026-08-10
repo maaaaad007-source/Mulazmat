@@ -8,6 +8,7 @@ saved) over a two-up grid of result cards. There is no sidebar.
 
 from __future__ import annotations
 
+import dataclasses
 import sys
 from pathlib import Path
 
@@ -44,7 +45,7 @@ def _cached_search(
     """
     query = SearchQuery(**query_fields)
     if demo:
-        return [job.to_dict() for job in sample_jobs(query, limit)]
+        return [job.to_dict() for job in sample_jobs(query, limit, bool(detail_count))]
 
     client = LinkedInClient()
     progress = st.progress(0.0, text="Searching LinkedIn…")
@@ -319,11 +320,20 @@ if run:
             st.session_state["recent_titles"] = job_titles.remember(
                 st.session_state.get("recent_titles", ()), query.keywords
             )
+            # Filtering by workplace means every result is of that kind, even
+            # though the posting itself never says so. Remember what was asked
+            # for so the cards can label it.
+            asked = st.session_state.get("workplace", "Select all")
+            st.session_state["searched_workplace"] = "" if asked == "Select all" else asked
 
 if "results" in st.session_state:
     if st.session_state.get("demo"):
         st.info("Demo mode — these are sample results, not live LinkedIn data.")
-    _render_results([Job(**row) for row in st.session_state["results"]], query)
+    workplace = st.session_state.get("searched_workplace", "")
+    jobs = [Job(**row) for row in st.session_state["results"]]
+    if workplace:
+        jobs = [dataclasses.replace(job, workplace=job.workplace or workplace) for job in jobs]
+    _render_results(jobs, query)
 else:
     st.markdown(
         """

@@ -46,12 +46,13 @@ to bring the hamburger menu back.
 | Sort | Most relevant or most recent. |
 | Max results | 25–500. |
 | View | **Cards** (default) or **Table**. Both live under **Filters**. |
-| Fetch full details | Off by default. Opens each posting for its description, seniority, employment type, applicant count and apply link — one extra request per job, capped at the first N. |
+| Fetch full details | Off by default. Opens each posting for its description, employment type, applicant count and apply link — one extra request per job, capped at the first N. With it on, cards gain a description snippet and a fuller workplace / job-type / age strip. |
 
 Results render as cards — title, company, location, the workplace / job-type /
-age strip and a **Contact & apply** footer — or as a sortable table. Either way
-there is a **Download CSV** button, and the CSV carries every field including the
-description and salary that the cards leave out.
+age strip, a description once details are fetched, and a **Contact & apply**
+footer — or as a sortable table. Either way there is a **Download CSV** button,
+and the CSV carries every field, including ones the cards leave out such as
+salary and the full posted date.
 
 ## About "contact details"
 
@@ -129,7 +130,7 @@ pip install pytest
 pytest
 ```
 
-61 tests: HTML parsing against pinned real-world search and job-detail
+66 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), and end-to-end runs that drive the
 actual Streamlit app through `AppTest` — the top bar, the filters panel, title
@@ -151,3 +152,10 @@ The suggestion list in `src/mulazmat/job_titles.py` is local, not fetched.
 LinkedIn's typeahead is not a public API, and a lookup per keystroke would be
 slow and another way to earn a rate limit. Add or remove entries there freely —
 the box accepts anything you type either way.
+
+### Where the workplace label comes from
+
+LinkedIn does not put a workplace type on a search card, so a card only says
+"Remote" or "Hybrid" when the posting's own location text says so — or when you
+filtered by workplace, in which case every result is of that kind by definition
+and the cards are labelled accordingly. It is never guessed from anything else.

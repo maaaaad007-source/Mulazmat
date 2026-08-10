@@ -97,6 +97,38 @@ def test_searching_puts_the_title_at_the_top_of_the_suggestions():
     assert app.selectbox(key="title").options[0] == "Chef"
 
 
+def test_fetch_full_details_puts_a_description_on_the_cards():
+    app = _app()
+    app.checkbox(key="fetch_details").set_value(True).run()
+    app = _search(app)
+
+    html = _html(app)
+    assert '<p class="mz-desc">' in html
+    # And the strip fills out, because employment type comes from the same place.
+    assert "Full-time" in html or "Contract" in html
+
+
+def test_without_enrichment_cards_carry_no_description():
+    html = _html(_search(_app()))
+    assert '<p class="mz-desc">' not in html
+
+
+def test_workplace_filter_labels_the_cards():
+    # LinkedIn never states workplace on a search card, but filtering to Remote
+    # means every result is remote, so the cards can say so.
+    app = _app()
+    app.radio(key="workplace").set_value("Remote").run()
+    app = _search(app)
+
+    assert app.session_state["searched_workplace"] == "Remote"
+    assert "Remote" in _html(app)
+
+
+def test_no_workplace_filter_leaves_the_label_alone():
+    app = _search(_app())
+    assert app.session_state["searched_workplace"] == ""
+
+
 def test_country_selection_seeds_the_geo_id():
     app = _app()
     app.selectbox(key="country").set_value("Netherlands").run()
