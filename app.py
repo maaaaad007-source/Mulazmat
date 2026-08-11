@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from mulazmat import countries, filters, job_titles, theme  # noqa: E402
 from mulazmat.arrange import arrange, needs_refetch  # noqa: E402
 from mulazmat.cards import render_grid  # noqa: E402
+from mulazmat.email_draft import DEFAULT_PROFILE  # noqa: E402
 from mulazmat.linkedin import LinkedInClient, LinkedInError  # noqa: E402
 from mulazmat.models import Job, SearchQuery  # noqa: E402
 from mulazmat.sample_data import sample_jobs  # noqa: E402
@@ -34,6 +35,10 @@ st.markdown(theme.STYLES, unsafe_allow_html=True)
 theme.hide_cloud_badge()
 
 WORKPLACE_CHOICES = ["Select all", *filters.WORKPLACE_TYPES]
+
+# Seeded once so the first email draft already signs off with a real profile
+# link. Editable like any other field, and the edit sticks.
+st.session_state.setdefault("me_profile", DEFAULT_PROFILE)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -143,6 +148,39 @@ def _filters_panel() -> None:
         "rarely state it anywhere readable. Costs two extra searches.",
     )
     st.checkbox("Demo mode (no network)", key="demo_mode", help="Sample results, no LinkedIn call.")
+
+    st.markdown('<p class="mz-fgroup">Your details</p>', unsafe_allow_html=True)
+    # Feeds every "Write email" draft. Collapsed by default because it is filled
+    # in once and then forgotten about, unlike the filters above it.
+    #
+    # These are typed rather than read off your LinkedIn profile: profile pages
+    # are behind a sign-in wall for anything automated, so there is nothing to
+    # fetch. The profile URL is carried into the signature so the reader can go
+    # and look for themselves.
+    with st.expander("Used in email drafts"):
+        st.text_input("Your name", key="me_name", placeholder="Your name")
+        st.text_input(
+            "Headline", key="me_headline", placeholder="e.g. Senior UX Designer, Amsterdam"
+        )
+        st.text_input("Your email", key="me_email", placeholder="you@example.com")
+        st.text_input("Phone (optional)", key="me_phone", placeholder="+00 000 000 000")
+        st.text_input("Based in (optional)", key="me_location", placeholder="City, country")
+        st.text_input("LinkedIn profile", key="me_profile")
+        st.text_area(
+            "Key skills",
+            key="me_skills",
+            placeholder="Figma, user research, design systems",
+            height=70,
+            help="Comma separated. A draft names the ones the posting itself mentions.",
+        )
+        st.text_area(
+            "Short pitch (optional)",
+            key="me_pitch",
+            placeholder="A sentence or two about you, reused in every draft.",
+            height=80,
+            help="Left blank, drafts carry a visible placeholder instead — the "
+            "why-this-company line is the one worth writing yourself.",
+        )
 
     st.markdown('<p class="mz-fgroup">Advanced</p>', unsafe_allow_html=True)
     st.text_input(

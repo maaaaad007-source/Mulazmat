@@ -211,6 +211,104 @@ def test_apply_filters_collapses_the_panel():
     assert app.session_state["filters_panel"] == 2
 
 
+def _write_email(app: AppTest) -> AppTest:
+    """Open the first card's draft."""
+    return [b for b in app.button if b.key.startswith("email_")][0].click().run()
+
+
+def test_every_card_offers_to_write_an_email():
+    app = _search(_app())
+    cards = len([b for b in app.button if b.key.startswith("save_")])
+    assert len([b for b in app.button if b.key.startswith("email_")]) == cards
+
+
+def test_writing_an_email_fills_in_a_draft_about_that_posting():
+    app = _search(_app(), title="UX Designer")
+    app = _write_email(app)
+    assert not app.exception
+
+    subject = [i for i in app.text_input if i.key.startswith("subj_")][0]
+    body = [a for a in app.text_area if a.key.startswith("body_")][0]
+
+    assert "UX Designer" in subject.value
+    assert "UX Designer" in body.value
+    # Addressed to the company on that card, and signed with the profile.
+    assert "Northwind Studio" in body.value
+    assert "linkedin.com/in/sunduslive" in body.value
+
+
+def test_the_draft_only_opens_on_the_card_you_clicked():
+    app = _write_email(_search(_app()))
+    assert len([a for a in app.text_area if a.key.startswith("body_")]) == 1
+    assert len(app.session_state["emailing"]) == 1
+
+
+def test_your_details_are_written_into_the_draft():
+    app = AppTest.from_file(APP, default_timeout=30)
+    app.session_state["me_name"] = "Sundus"
+    app.session_state["me_email"] = "sundus@example.com"
+    app.session_state["me_skills"] = "user research, Figma"
+    app = _write_email(_search(app.run()))
+
+    body = [a for a in app.text_area if a.key.startswith("body_")][0].value
+    assert body.rstrip().endswith("https://www.linkedin.com/in/sunduslive")
+    assert "sundus@example.com" in body
+    assert "Sundus" in body
+
+
+def test_the_details_panel_seeds_the_owners_profile():
+    app = _app()
+    assert app.text_input(key="me_profile").value == "https://www.linkedin.com/in/sunduslive"
+    assert {"me_name", "me_email", "me_headline"} <= {i.key for i in app.text_input}
+    assert {"me_skills", "me_pitch"} <= {a.key for a in app.text_area}
+
+
+def test_the_draft_can_be_edited_and_survives_a_rerun():
+    app = _write_email(_search(_app()))
+    body = [a for a in app.text_area if a.key.startswith("body_")][0]
+    app = body.set_value("My own words entirely.").run()
+
+    assert [a for a in app.text_area if a.key.startswith("body_")][0].value == (
+        "My own words entirely."
+    )
+
+
+def test_regenerate_throws_hand_edits_away():
+    app = _write_email(_search(_app()))
+    key = [a for a in app.text_area if a.key.startswith("body_")][0].key
+    app = app.text_area(key=key).set_value("scratch that").run()
+
+    app = [b for b in app.button if b.key.startswith("regen_")][0].click().run()
+    assert app.text_area(key=key).value != "scratch that"
+    assert "Job Results" in _html(app)
+
+
+def test_changing_tone_rewrites_the_draft():
+    app = _write_email(_search(_app()))
+    tone = [r for r in app.radio if r.key.startswith("tone_")][0]
+    assert tone.value == "Professional"
+    before = [a for a in app.text_area if a.key.startswith("body_")][0].value
+
+    app = tone.set_value("Short").run()
+    after = [a for a in app.text_area if a.key.startswith("body_")][0].value
+    assert after != before
+    assert len(after) < len(before)
+
+
+def test_closing_the_draft_puts_the_card_back():
+    app = _write_email(_search(_app()))
+    app = [b for b in app.button if b.key.startswith("email_")][0].click().run()
+    assert not [a for a in app.text_area if a.key.startswith("body_")]
+    assert not app.session_state["emailing"]
+
+
+def test_the_recipient_box_starts_empty_because_linkedin_publishes_none():
+    app = _write_email(_search(_app()))
+    to = [i for i in app.text_input if i.key.startswith("to_")][0]
+    assert to.value == ""
+    assert "LinkedIn does not publish one" in to.placeholder
+
+
 def test_saving_a_job_and_filtering_to_saved_only():
     app = _search(_app())
     save_buttons = [b for b in app.button if b.key.startswith("save_")]

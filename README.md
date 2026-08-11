@@ -22,14 +22,16 @@ A single horizontal bar across the top — logo, job title, company, country,
 **Search**, **Filters**, and a bookmark that switches to your saved jobs. There is
 no sidebar. Everything secondary lives in the **Filters** dropdown: sort, date
 posted, workplace, experience level, max results, card/table view, detail
-fetching, demo mode and the geoId override.
+fetching, demo mode, your own details for email drafts, and the geoId override.
 
 Results are a two-up grid of cards: company logo, title, company, location, a
 workplace / job-type / age strip, and the **Contact & apply** footer. Logos come
 off the search results themselves, so they cost no extra requests; companies
 without one get a monogram. Postings with more description than a card shows get
 a **Read full description** toggle, which swaps the snippet for the whole
-posting in place so you can read it without opening LinkedIn. Each card has a bookmark to save it; saved jobs live in the session, so they clear when
+posting in place so you can read it without opening LinkedIn. **Write email**
+opens a draft written for that specific posting — see below. Each card has a
+bookmark to save it; saved jobs live in the session, so they clear when
 the browser tab is closed. **Apply filters** re-arranges the cards and closes
 the panel — see below for when it searches instead.
 
@@ -85,6 +87,45 @@ none, rather than inventing something.
 
 Most of that footer beyond the company page only appears with **Fetch full
 details** switched on, since it comes from the individual job page.
+
+## Write email
+
+Every card has a **Write email** button that opens a draft written for that
+posting, in place, inside the card. It is addressed to the person who posted the
+job when the posting names one, and to the company's hiring team when it does
+not — and it picks up the role, the company, the location, whether the role is
+remote, when it went up, and which of your skills the posting actually asks for.
+
+Three registers — **Professional**, **Warm**, **Short** — and everything is
+editable before it goes anywhere. **Open in email app** hands the draft to your
+mail client as a `mailto:` link; **Copy as plain text** is there for webmail,
+which ignores `mailto:`. **Start over** rewrites the draft from scratch,
+discarding your edits.
+
+Two things the app will not do for you:
+
+- **Fill in the recipient.** LinkedIn publishes no email addresses, so the
+  **To** box starts empty. Take the address off the company's careers page or
+  the posting itself. Nothing here guesses `first.last@company.com`, and when a
+  posting names its poster there is a **Message on LinkedIn** button instead —
+  the channel that actually exists.
+- **Write the "why this company" sentence.** That paragraph comes out as
+  `[One or two sentences on why this company in particular.]` until you replace
+  it. It is the one line a recruiter can tell was generated. Fill in **Short
+  pitch** under Your details to have your own standing version dropped in.
+
+### Your details
+
+**Filters → Your details** holds the other half: your name, headline, email,
+phone, where you are based, your LinkedIn profile and your key skills. Fill it
+in once and every draft is signed properly.
+
+Two notes on it. The skills box is what makes a draft specific — a draft names
+only the skills the posting itself mentions, and falls back to listing yours
+when nothing overlaps, so a longer list gives it more to work with. And the
+profile URL is pre-filled but not *read*: LinkedIn profile pages are behind a
+sign-in wall for anything automated, so nothing is scraped from it. It travels
+into the signature so the reader can go and look.
 
 ## What "Apply filters" does
 
@@ -181,6 +222,8 @@ in use and lets you override it if results for your country look wrong.
 app.py                      Streamlit UI
 src/mulazmat/
   cards.py                  Card markup (escaped) + the results grid
+  email_draft.py            Per-posting email drafts and the mailto link
+  arrange.py                Local re-arranging: sort, date window, trim
   job_titles.py             Autocomplete suggestions for the search box
   theme.py                  The stylesheet: top bar, filters panel, cards
   countries.py              Country list, geoId hints, location strings
@@ -198,11 +241,13 @@ pip install pytest
 pytest
 ```
 
-89 tests: HTML parsing against pinned real-world search and job-detail
+168 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
-(including escaping of untrusted job titles), and end-to-end runs that drive the
-actual Streamlit app through `AppTest` — the top bar, the filters panel, title
-suggestions, saving and unsaving jobs, and the saved-only view.
+(including escaping of untrusted job titles), the email drafts (who they are
+addressed to, what they pick up from a posting, and what they refuse to
+invent), and end-to-end runs that drive the actual Streamlit app through
+`AppTest` — the top bar, the filters panel, title suggestions, saving and
+unsaving jobs, the saved-only view, and opening and editing a draft on a card.
 
 Note that the test suite deliberately makes **no network calls** — the live
 endpoint is exercised by running the app, not by CI.

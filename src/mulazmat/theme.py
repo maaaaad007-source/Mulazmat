@@ -298,6 +298,78 @@ iframe[height="0"] {{ display: none !important; }}
   background: transparent !important; color: var(--mz-accent) !important;
 }}
 
+/* ---- Write email ------------------------------------------------------- */
+/* The card's own action, so it is filled rather than outlined like the links
+   above it. `st-key-email_` cannot collide with the `me_email` details field —
+   the underscore is on the other side of the word. */
+[class*="st-key-email_"] {{ margin: .75rem 0 .1rem !important; }}
+[class*="st-key-email_"] button {{
+  border: 1px solid var(--mz-accent) !important; background: var(--mz-accent) !important;
+  color: #fff !important; border-radius: 5px !important;
+  padding: .5rem 1rem !important; min-height: 0 !important; height: auto !important;
+  font-size: .72rem; font-weight: 600; letter-spacing: .11em; text-transform: uppercase;
+}}
+[class*="st-key-email_"] button:hover {{
+  background: var(--mz-accent-dark) !important; border-color: var(--mz-accent-dark) !important;
+}}
+/* Open: the same button, held back so "Open in email app" leads. */
+[class*="st-key-emailopen_"] button {{
+  background: #fff !important; color: var(--mz-muted) !important;
+  border-color: var(--mz-line) !important;
+}}
+[class*="st-key-emailopen_"] button:hover {{
+  background: #fff !important; color: var(--mz-accent) !important;
+  border-color: var(--mz-accent) !important;
+}}
+
+/* The panel is its own container so this gap does not reach the rest of the
+   card — Streamlit's default 1rem between eight widgets is an ocean. */
+[class*="st-key-draftbox_"] {{ gap: .45rem !important; margin-top: .9rem; }}
+/* Cards are stretched to the height of their row, and a flex column with
+   spare height to hand out squashes the message box and inflates whatever
+   follows it. Every part of the draft keeps the size it asked for. */
+[class*="st-key-draftbox_"] > * {{ flex: none !important; }}
+/* The rule that stretches a card to its row also catches the copy expander,
+   which is a layout wrapper in the same column. It should be its own height. */
+[class*="st-key-draftbox_"] [data-testid="stLayoutWrapper"] {{ height: auto !important; }}
+.mz-draft-label {{
+  font-size: .7rem; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--mz-muted); margin: 0 0 .1rem !important;
+}}
+[class*="st-key-tone_"] label {{ font-size: .82rem; }}
+[class*="st-key-body_"] textarea {{
+  font-size: .82rem !important; line-height: 1.55; font-family: inherit;
+}}
+[class*="st-key-subj_"] input {{ font-weight: 600; }}
+/* Both draft links read as card actions rather than Streamlit defaults.
+   Keyed rather than matched on the link's `kind`, which stays "secondary"
+   whatever `type=` says. */
+[class*="st-key-mailto_"] a, [class*="st-key-liprofile_"] a {{
+  border-radius: 5px !important; min-height: 0 !important; height: auto !important;
+  padding: .55rem 1rem !important; font-size: .72rem; font-weight: 600;
+  letter-spacing: .11em; text-transform: uppercase;
+}}
+[class*="st-key-mailto_"] a {{
+  background: var(--mz-accent) !important; border: 1px solid var(--mz-accent) !important;
+  color: #fff !important;
+}}
+[class*="st-key-mailto_"] a:hover {{
+  background: var(--mz-accent-dark) !important; border-color: var(--mz-accent-dark) !important;
+}}
+[class*="st-key-liprofile_"] a {{
+  background: #fff !important; border: 1px solid var(--mz-accent) !important;
+  color: var(--mz-accent) !important;
+}}
+/* "Start over" is a quiet escape hatch, not a third call to action. */
+[class*="st-key-regen_"] button {{
+  border: none !important; background: transparent !important; box-shadow: none !important;
+  padding: 0 !important; min-height: 0 !important; height: auto !important;
+  color: var(--mz-muted) !important; font-size: .72rem; font-weight: 600;
+  letter-spacing: .09em; text-transform: uppercase;
+}}
+[class*="st-key-regen_"] button:hover {{ color: var(--mz-accent) !important; }}
+[class*="st-key-draftbox_"] [data-testid="stExpander"] summary {{ font-size: .78rem; }}
+
 @media (max-width: 640px) {{
   [class*="st-key-topbar"] {{ padding-inline: 1rem; }}
   .mz-meta {{ flex-direction: column; gap: .3rem; }}

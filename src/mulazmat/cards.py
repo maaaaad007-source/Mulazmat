@@ -14,6 +14,8 @@ from html import escape
 
 import streamlit as st
 
+from . import email_draft
+from .email_draft import Sender
 from .models import Job
 
 #: Logo edge length, in px. Mirrored in the stylesheet and pinned on the <img>
@@ -177,6 +179,100 @@ def _toggle_expanded(job_id: str) -> None:
     expanded.symmetric_difference_update({job_id})
 
 
+def _toggle_email(job_id: str) -> None:
+    """Open or close a card's email draft. A callback, for the same reason."""
+    open_drafts: set[str] = st.session_state.setdefault("emailing", set())
+    open_drafts.symmetric_difference_update({job_id})
+
+
+def _regenerate(job_id: str) -> None:
+    """Throw away hand edits and rewrite the draft from the current details."""
+    st.session_state.pop(f"draft_{job_id}", None)
+
+
+def _render_email_panel(job: Job, sender: Sender) -> None:
+    """The draft editor, opened inside the card it belongs to.
+
+    Subject and body are seeded into session state *before* the widgets are
+    created, which is the only way to refill a keyed widget — a keyed text box
+    ignores ``value=`` after its first render. They are only reseeded when the
+    tone or your own details change, so hand edits survive a rerun.
+    """
+    job_id = job.job_id
+    subject_key, body_key, stamp_key = f"subj_{job_id}", f"body_{job_id}", f"draft_{job_id}"
+
+    # Its own container so the panel's spacing can be tightened without
+    # disturbing the card around it — the gap lives on the vertical block, and
+    # the card's own block is shared with the title, description and footer.
+    with st.container(key=f"draftbox_{job_id}"):
+        st.markdown('<p class="mz-draft-label">Email draft</p>', unsafe_allow_html=True)
+
+        tone = st.radio(
+            "Tone",
+            list(email_draft.TONES),
+            key=f"tone_{job_id}",
+            horizontal=True,
+            label_visibility="collapsed",
+        )
+
+        stamp = (tone, sender.fingerprint())
+        if st.session_state.get(stamp_key) != stamp:
+            st.session_state[stamp_key] = stamp
+            st.session_state[subject_key] = email_draft.subject(job, sender)
+            st.session_state[body_key] = email_draft.body(job, sender, tone)
+
+        if not sender.is_usable:
+            st.caption("Add your name and contact details under Filters → Your details.")
+
+        # LinkedIn publishes no email address for a posting, so this is the one
+        # field the app genuinely cannot fill in. Left empty, the mailto still
+        # opens a compose window — just without a recipient.
+        to = st.text_input(
+            "To",
+            key=f"to_{job_id}",
+            placeholder="To — name@company.com (LinkedIn does not publish one)",
+            label_visibility="collapsed",
+        )
+        st.text_input("Subject", key=subject_key, placeholder="Subject", label_visibility="collapsed")
+        st.text_area("Message", key=body_key, height=300, label_visibility="collapsed")
+
+        # Read back from state rather than from the return values, so the links
+        # carry any edit made during this run.
+        message = st.session_state.get(body_key, "")
+        line = st.session_state.get(subject_key, "")
+
+        st.link_button(
+            "Open in email app",
+            email_draft.mailto_url(to, line, message),
+            key=f"mailto_{job_id}",
+            width="stretch",
+        )
+        if job.poster_profile:
+            # No address? The person who posted it is still reachable where they
+            # posted it.
+            st.link_button(
+                "Message on LinkedIn",
+                job.poster_profile,
+                key=f"liprofile_{job_id}",
+                width="stretch",
+            )
+
+        # Webmail ignores mailto:, so give that half of the world something to
+        # copy — st.code brings its own copy button.
+        with st.expander("Copy as plain text"):
+            # wrap_lines, or a letter reads as one clipped line per paragraph.
+            st.code(f"Subject: {line}\n\n{message}", language=None, wrap_lines=True)
+
+        st.button(
+            "Start over",
+            key=f"regen_{job_id}",
+            on_click=_regenerate,
+            args=(job_id,),
+            help="Rewrite this draft from the posting and your details, "
+            "discarding any edits.",
+        )
+
+
 def render_grid(jobs: list[Job], saved: set[str], columns: int = 2) -> str | None:
     """Draw the cards two-up and return the id of any save button clicked.
 
@@ -186,6 +282,8 @@ def render_grid(jobs: list[Job], saved: set[str], columns: int = 2) -> str | Non
     """
     clicked: str | None = None
     expanded: set[str] = st.session_state.setdefault("expanded", set())
+    emailing: set[str] = st.session_state.setdefault("emailing", set())
+    sender = Sender.from_state(st.session_state)
 
     for row_start in range(0, len(jobs), columns):
         row = jobs[row_start : row_start + columns]
@@ -216,5 +314,30 @@ def render_grid(jobs: list[Job], saved: set[str], columns: int = 2) -> str | Non
                     )
 
                 st.markdown(contact_html(job), unsafe_allow_html=True)
+
+                # An email has to be written per posting, so the control lives
+                # with the posting rather than anywhere central.
+                drafting = job.job_id in emailing
+
+                def _email_button() -> None:
+                    st.button(
+                        "Close draft" if drafting else "Write email",
+                        key=f"email_{job.job_id or row_start}",
+                        on_click=_toggle_email,
+                        args=(job.job_id,),
+                        help=f"Draft an email about this role to {job.poster_name}"
+                        if job.poster_name
+                        else "Draft an email about this role",
+                    )
+
+                if drafting:
+                    # Wrapped only while open, purely so the stylesheet can hold
+                    # it back — an open draft already has a filled action of its
+                    # own, and two competing for the eye is one too many.
+                    with st.container(key=f"emailopen_{job.job_id or row_start}"):
+                        _email_button()
+                    _render_email_panel(job, sender)
+                else:
+                    _email_button()
 
     return clicked
