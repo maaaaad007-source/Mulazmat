@@ -120,6 +120,13 @@ Two things the app will not do for you:
 phone, where you are based, your LinkedIn profile and your key skills. Fill it
 in once and every draft is signed properly.
 
+It really is once. Streamlit's session state only lasts as long as the browser
+tab, so the details are also kept in a cookie in your own browser and restored
+on your next visit — see `src/mulazmat/details_store.py`. Nothing leaves your
+machine: the cookie is read back through `st.context.cookies` and never travels
+with a LinkedIn request. Clearing the fields clears the cookie; clearing your
+browser's site data does too, and then you type them again.
+
 Two notes on it. The skills box is what makes a draft specific — a draft names
 only the skills the posting itself mentions, and falls back to listing yours
 when nothing overlaps, so a longer list gives it more to work with. And the
@@ -223,6 +230,7 @@ app.py                      Streamlit UI
 src/mulazmat/
   cards.py                  Card markup (escaped) + the results grid
   email_draft.py            Per-posting email drafts and the mailto link
+  details_store.py          Your details, remembered in a browser cookie
   arrange.py                Local re-arranging: sort, date window, trim
   job_titles.py             Autocomplete suggestions for the search box
   theme.py                  The stylesheet: top bar, filters panel, cards
@@ -241,7 +249,7 @@ pip install pytest
 pytest
 ```
 
-168 tests: HTML parsing against pinned real-world search and job-detail
+183 tests: HTML parsing against pinned real-world search and job-detail
 fragments, query-parameter construction, the country list, card markup
 (including escaping of untrusted job titles), the email drafts (who they are
 addressed to, what they pick up from a posting, and what they refuse to

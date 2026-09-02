@@ -17,7 +17,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from mulazmat import countries, filters, job_titles, theme  # noqa: E402
+from mulazmat import countries, details_store, filters, job_titles, theme  # noqa: E402
 from mulazmat.arrange import arrange, needs_refetch  # noqa: E402
 from mulazmat.cards import render_grid  # noqa: E402
 from mulazmat.email_draft import DEFAULT_PROFILE  # noqa: E402
@@ -35,6 +35,10 @@ st.markdown(theme.STYLES, unsafe_allow_html=True)
 theme.hide_cloud_badge()
 
 WORKPLACE_CHOICES = ["Select all", *filters.WORKPLACE_TYPES]
+
+# Your details, as remembered by this browser. Must run before the default
+# below, so a saved profile wins over the seeded one.
+details_store.load()
 
 # Seeded once so the first email draft already signs off with a real profile
 # link. Editable like any other field, and the edit sticks.
@@ -181,6 +185,7 @@ def _filters_panel() -> None:
             help="Left blank, drafts carry a visible placeholder instead — the "
             "why-this-company line is the one worth writing yourself.",
         )
+        st.caption("Remembered in this browser, so you only fill this in once.")
 
     st.markdown('<p class="mz-fgroup">Advanced</p>', unsafe_allow_html=True)
     st.text_input(
@@ -419,3 +424,6 @@ if "results" in st.session_state:
     )
 else:
     st.markdown(theme.IDLE_GIF, unsafe_allow_html=True)
+
+# Last, so it sees the details exactly as the widgets left them this run.
+details_store.save()
