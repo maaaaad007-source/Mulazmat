@@ -1,0 +1,65 @@
+name: Keep active
+
+# GitHub disables scheduled workflows after 60 days of repository inactivity,
+# and a workflow's own runs do not count as activity. This job commits a dated
+# heartbeat, which keeps the schedule — and the repository — from going quiet.
+#
+# It deliberately builds and tests nothing: this workflow is copied across
+# repositories of different languages, and a step that assumed one stack would
+# fail everywhere else.
+#
+# To stop it: disable "Keep active" in the Actions tab, or delete this file.
+on:
+  schedule:
+    - cron: "23 5 * * 1"   # Mondays, 05:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keep-active
+  cancel-in-progress: false
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write the heartbeat file
+        run: |
+          mkdir -p .github
+          {
+            echo "# Activity"
+            echo
+            echo "Written automatically by \`.github/workflows/keep-active.yml\`"
+            echo "so this repository does not go dormant."
+            echo
+            echo "- **Last run:** $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo "- **Branch:** \`${GITHUB_REF_NAME}\`"
+            echo "- **Commit at run time:** \`${GITHUB_SHA}\`"
+          } > .github/ACTIVITY.md
+
+      - name: Commit and push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/ACTIVITY.md
+          if git diff --cached --quiet; then
+            echo "Heartbeat unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "Keep active: $(date -u +%Y-%m-%d) [skip ci]"
+          # The branch may have moved since checkout; rebase rather than fail.
+          for attempt in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          echo "Could not push the heartbeat after 3 attempts." >&2
+          exit 1
