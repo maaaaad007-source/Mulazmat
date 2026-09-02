@@ -3,6 +3,11 @@
 One line per scheduled run. The run pulls the branch, installs the pinned
 requirements, executes the test suite, and appends its result here.
 
+It fires every **Monday at 07:00 UTC** (09:00 in Central European Summer Time)
+from a Claude Code routine, `Mulazmat weekly maintenance run`. To change the
+schedule or stop it, edit or delete that routine — there is nothing to configure
+in this repository.
+
 The point is twofold: the repo keeps a real commit history rather than going
 dormant, and a Streamlit release that breaks the app shows up here — dated —
 instead of on the deployed site.
