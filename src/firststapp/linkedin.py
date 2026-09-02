@@ -6,7 +6,7 @@ logged-out jobs page calls for infinite scroll:
     /jobs-guest/jobs/api/seeMoreJobPostings/search
 
 It returns an HTML fragment — a ``<li>`` per posting — which we parse into
-:class:`~mulazmat.models.Job` objects. Two consequences worth knowing:
+:class:`~firststapp.models.Job` objects. Two consequences worth knowing:
 
 * **It is rate limited.** Hammering it earns HTTP 429 and then a temporary
   block. The client paces itself (see ``request_delay``) and backs off.

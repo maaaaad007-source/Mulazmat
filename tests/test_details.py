@@ -1,4 +1,4 @@
-from mulazmat.linkedin import parse_job_details
+from firststapp.linkedin import parse_job_details
 
 DETAIL_PAGE = """
 <section class="core-section-container">

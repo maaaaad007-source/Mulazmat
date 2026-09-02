@@ -1,4 +1,4 @@
-# 💼 Mulazmat
+# 💼 firstSTAPP
 
 A Streamlit app for searching LinkedIn job postings by **job title**, **company**
 (optional) and **country** (full alphabetical list, type-to-search).
@@ -36,7 +36,7 @@ the browser tab is closed. **Apply filters** re-arranges the cards and closes
 the panel — see below for when it searches instead.
 
 Streamlit's own header is hidden so it cannot sit on top of the **Filters**
-button — delete the `[data-testid="stHeader"]` rule in `src/mulazmat/theme.py`
+button — delete the `[data-testid="stHeader"]` rule in `src/firststapp/theme.py`
 to bring the hamburger menu back.
 
 ## What you can search on
@@ -122,7 +122,7 @@ in once and every draft is signed properly.
 
 It really is once. Streamlit's session state only lasts as long as the browser
 tab, so the details are also kept in a cookie in your own browser and restored
-on your next visit — see `src/mulazmat/details_store.py`. Nothing leaves your
+on your next visit — see `src/firststapp/details_store.py`. Nothing leaves your
 machine: the cookie is read back through `st.context.cookies` and never travels
 with a LinkedIn request. Clearing the fields clears the cookie; clearing your
 browser's site data does too, and then you type them again.
@@ -150,7 +150,7 @@ request to LinkedIn:
 
 So changing the sort order re-arranges what you are looking at, and only a
 filter LinkedIn itself has to act on sends you back for a new set. That
-boundary is `needs_refetch` in `src/mulazmat/arrange.py` — it is not a
+boundary is `needs_refetch` in `src/firststapp/arrange.py` — it is not a
 judgement call, it is simply which fields exist on a search card.
 
 One consequence worth knowing: with a date window active, a posting whose date
@@ -160,7 +160,7 @@ an assertion, and an unknown date cannot support it.
 ## Speed, and the one dial that controls it
 
 Requests are strictly sequential — one at a time, with a deliberate pause
-between them. `REQUEST_DELAY` in `src/mulazmat/linkedin.py` sets that pause;
+between them. `REQUEST_DELAY` in `src/firststapp/linkedin.py` sets that pause;
 it is 0.6s, or roughly 1.7 requests a second.
 
 At ~250ms per request that works out around 8s for 100 results with details
@@ -178,7 +178,7 @@ something, these are the way back:
 
 | Branch | What it is |
 | --- | --- |
-| `known-good-v2-backup` | **Latest.** Everything below, plus local re-arranging on Apply filters, the gif idle state, the "oolazim" tab title and the hidden Manage app badge. 124 tests. |
+| `known-good-v2-backup` | **Latest.** Everything below, plus local re-arranging on Apply filters, the gif idle state, the "oolazim" tab title (renamed to firstSTAPP after this point) and the hidden Manage app badge. 124 tests. |
 | `known-good-v1-backup` | The version before the speed and rate-limit work: sequential fetching, filters that re-search. 89 tests. |
 
 ```bash
@@ -218,7 +218,7 @@ comes with real limits you should know about before relying on it:
 ### Country accuracy
 
 LinkedIn resolves locations internally by a numeric `geoId`. Those ids are not
-published, so `src/mulazmat/countries.py` carries a **partial, best-effort map**
+published, so `src/firststapp/countries.py` carries a **partial, best-effort map**
 for 20 common countries; everything else sends the country name as free text,
 which LinkedIn resolves itself. **Filters → Advanced** always shows the `geoId`
 in use and lets you override it if results for your country look wrong.
@@ -227,7 +227,7 @@ in use and lets you override it if results for your country look wrong.
 
 ```
 app.py                      Streamlit UI
-src/mulazmat/
+src/firststapp/
   cards.py                  Card markup (escaped) + the results grid
   email_draft.py            Per-posting email drafts and the mailto link
   details_store.py          Your details, remembered in a browser cookie
@@ -269,7 +269,7 @@ the options are unnumbered rather than numbered with invented figures.
 
 ### Job-title suggestions
 
-The suggestion list in `src/mulazmat/job_titles.py` is local, not fetched.
+The suggestion list in `src/firststapp/job_titles.py` is local, not fetched.
 LinkedIn's typeahead is not a public API, and a lookup per keystroke would be
 slow and another way to earn a rate limit. Add or remove entries there freely —
 the box accepts anything you type either way.

@@ -1,4 +1,4 @@
-from mulazmat import job_titles
+from firststapp import job_titles
 
 
 def test_curated_list_is_unique_case_insensitively():

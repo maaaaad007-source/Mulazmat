@@ -1,4 +1,4 @@
-"""Mulazmat — search LinkedIn job postings from a Streamlit UI.
+"""firstSTAPP — search LinkedIn job postings from a Streamlit UI.
 
 Run with:  streamlit run app.py
 
@@ -17,16 +17,16 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from mulazmat import countries, details_store, filters, job_titles, theme  # noqa: E402
-from mulazmat.arrange import arrange, needs_refetch  # noqa: E402
-from mulazmat.cards import render_grid  # noqa: E402
-from mulazmat.email_draft import DEFAULT_PROFILE  # noqa: E402
-from mulazmat.linkedin import LinkedInClient, LinkedInError  # noqa: E402
-from mulazmat.models import Job, SearchQuery  # noqa: E402
-from mulazmat.sample_data import sample_jobs  # noqa: E402
+from firststapp import countries, details_store, filters, job_titles, theme  # noqa: E402
+from firststapp.arrange import arrange, needs_refetch  # noqa: E402
+from firststapp.cards import render_grid  # noqa: E402
+from firststapp.email_draft import DEFAULT_PROFILE  # noqa: E402
+from firststapp.linkedin import LinkedInClient, LinkedInError  # noqa: E402
+from firststapp.models import Job, SearchQuery  # noqa: E402
+from firststapp.sample_data import sample_jobs  # noqa: E402
 
 st.set_page_config(
-    page_title="oolazim",
+    page_title="firstSTAPP",
     page_icon="💼",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -325,7 +325,7 @@ def _render_results(jobs: list[Job], query: SearchQuery, fetched: int = 0) -> No
     showing_saved = state.get("show_saved", False)
 
     # ``jobs`` arrives already arranged — company, date window, sort and count
-    # were applied by mulazmat.arrange.
+    # were applied by firststapp.arrange.
     filtered = [job for job in jobs if job.job_id in saved] if showing_saved else list(jobs)
 
     if not filtered:
@@ -358,7 +358,7 @@ def _render_results(jobs: list[Job], query: SearchQuery, fetched: int = 0) -> No
     st.download_button(
         "Download CSV",
         data=pd.DataFrame([job.to_dict() for job in filtered]).to_csv(index=False).encode("utf-8"),
-        file_name=f"mulazmat-{query.keywords.strip().replace(' ', '-').lower() or 'jobs'}.csv",
+        file_name=f"firststapp-{query.keywords.strip().replace(' ', '-').lower() or 'jobs'}.csv",
         mime="text/csv",
     )
 

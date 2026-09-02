@@ -18,7 +18,7 @@ Two honest limits, both structural:
   signature so the reader can go and look.
 
 Everything in this module is pure text: no Streamlit, no network. The widgets
-live in :mod:`mulazmat.cards`.
+live in :mod:`firststapp.cards`.
 """
 
 from __future__ import annotations

@@ -27,6 +27,10 @@ from typing import Any, Mapping, MutableMapping
 from urllib.parse import quote, unquote
 
 #: Cookie name. Namespaced so it cannot collide with Streamlit's own.
+#:
+#: It keeps the old ``mz_`` prefix through the rename to firstSTAPP on purpose:
+#: the name is the key a browser stores the details under, so changing it would
+#: silently forget the details of everyone who had already filled them in.
 COOKIE = "mz_details"
 
 #: The session-state keys the details panel writes. Only these are stored, so a

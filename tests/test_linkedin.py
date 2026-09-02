@@ -1,5 +1,5 @@
-from mulazmat.linkedin import LinkedInClient, LinkedInError, build_params, parse_jobs_html
-from mulazmat.models import Job, SearchQuery
+from firststapp.linkedin import LinkedInClient, LinkedInError, build_params, parse_jobs_html
+from firststapp.models import Job, SearchQuery
 
 # Trimmed-down copy of a real search-result fragment.
 FRAGMENT = """

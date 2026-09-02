@@ -8,9 +8,9 @@ from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
 
-from mulazmat import filters
-from mulazmat.linkedin import build_params
-from mulazmat.models import SearchQuery
+from firststapp import filters
+from firststapp.linkedin import build_params
+from firststapp.models import SearchQuery
 
 APP = str(Path(__file__).resolve().parents[1] / "app.py")
 

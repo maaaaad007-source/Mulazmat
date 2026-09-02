@@ -1,5 +1,5 @@
-from mulazmat import countries
-from mulazmat.filters import EXPERIENCE_LEVELS, values_for
+from firststapp import countries
+from firststapp.filters import EXPERIENCE_LEVELS, values_for
 
 
 def test_options_are_alphabetical_after_the_sentinel():

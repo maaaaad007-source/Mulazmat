@@ -6,6 +6,10 @@ a horizontal search bar, a filters dropdown, and bordered result cards.
 Selectors lean on ``st-key-*`` classes, which Streamlit emits for any element
 given a ``key``. That is far more stable than the generated ``st-emotion-*``
 hashes, which change between releases.
+
+The ``mz-`` class prefix predates the rename to firstSTAPP and is kept: it is an
+internal namespace nobody sees, and renaming 75 selectors in step with the
+markup that uses them is churn with a real chance of missing one.
 """
 
 from __future__ import annotations

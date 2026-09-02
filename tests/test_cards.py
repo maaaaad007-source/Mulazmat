@@ -1,4 +1,4 @@
-from mulazmat.cards import (
+from firststapp.cards import (
     LOGO_PX,
     SNIPPET_CHARS,
     card_html,
@@ -10,7 +10,7 @@ from mulazmat.cards import (
     snippet,
     title_html,
 )
-from mulazmat.models import Job
+from firststapp.models import Job
 
 FULL = Job(
     job_id="1",

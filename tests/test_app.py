@@ -44,15 +44,15 @@ def test_the_gif_gives_way_to_results():
 
 
 def test_streamlit_clouds_manage_app_badge_is_hidden():
-    from mulazmat import theme
+    from firststapp import theme
 
     assert '[data-testid="manage-app-button"]' in theme.STYLES
     assert '[class*="_profileContainer"]' in theme.STYLES
 
 
-def test_the_browser_tab_is_named_oolazim():
+def test_the_browser_tab_is_named_firststapp():
     source = Path(APP).read_text()
-    assert 'page_title="oolazim"' in source
+    assert 'page_title="firstSTAPP"' in source
 
 
 def test_search_without_a_title_is_rejected():

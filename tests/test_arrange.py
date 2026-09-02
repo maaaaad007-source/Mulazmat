@@ -2,8 +2,8 @@
 
 from datetime import date
 
-from mulazmat.arrange import arrange, needs_refetch, sort_jobs, within_window
-from mulazmat.models import Job, SearchQuery
+from firststapp.arrange import arrange, needs_refetch, sort_jobs, within_window
+from firststapp.models import Job, SearchQuery
 
 TODAY = date(2026, 8, 10)
 

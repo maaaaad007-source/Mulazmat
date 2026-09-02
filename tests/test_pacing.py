@@ -8,8 +8,8 @@ a time, a deliberate pause between them, and no pause after the last one.
 import threading
 import time
 
-from mulazmat.linkedin import REQUEST_DELAY, PAGE_SIZE, LinkedInClient
-from mulazmat.models import Job, SearchQuery
+from firststapp.linkedin import REQUEST_DELAY, PAGE_SIZE, LinkedInClient
+from firststapp.models import Job, SearchQuery
 
 
 def _card(job_id: int) -> str:

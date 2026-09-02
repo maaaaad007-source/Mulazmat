@@ -9,9 +9,9 @@ from urllib.parse import unquote
 
 import pytest
 
-from mulazmat import email_draft as ed
-from mulazmat.email_draft import Sender
-from mulazmat.models import Job
+from firststapp import email_draft as ed
+from firststapp.email_draft import Sender
+from firststapp.models import Job
 
 
 def job(**overrides) -> Job:

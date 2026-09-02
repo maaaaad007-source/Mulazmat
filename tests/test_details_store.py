@@ -8,7 +8,7 @@ and the rule that a value already in state is never overwritten.
 import json
 from urllib.parse import quote
 
-from mulazmat import details_store as store
+from firststapp import details_store as store
 
 FILLED = {
     "me_name": "Sundus",

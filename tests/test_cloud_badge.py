@@ -13,7 +13,7 @@ import pytest
 
 playwright = pytest.importorskip("playwright.sync_api")
 
-THEME = pathlib.Path(__file__).resolve().parents[1] / "src" / "mulazmat" / "theme.py"
+THEME = pathlib.Path(__file__).resolve().parents[1] / "src" / "firststapp" / "theme.py"
 CHROMIUM = "/opt/pw-browsers/chromium"
 
 #: What the cloud renders, as far as this matters: a hashed wrapper, a variant
